@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ThermoSim 2D</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070710;--surface:#0f0f1e;--surface2:#13132a;--surface3:#181830;
+  --border:#1e1e3a;--border2:#2a2a50;
+  --accent:#4fc3f7;--accent2:#ff6b35;--accent3:#7c4dff;
+  --green:#4ade80;--yellow:#fbbf24;--red:#f87171;
+  --text:#e0e0ff;--text-dim:#6060a0;--text-mid:#9090c0;
+  --panel-w:248px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;}
+#app{display:flex;width:100%;height:100%;flex-direction:column;}
+
+/* TOP BAR */
+#topbar{display:flex;align-items:center;gap:8px;padding:5px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:10;flex-wrap:wrap;}
+#topbar h1{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--accent);white-space:nowrap;}
+#topbar h1 span{color:var(--accent2);}
+.spacer{flex:1;}
+.top-btn{padding:4px 9px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:inherit;font-size:10px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.top-btn:hover{border-color:var(--accent);color:var(--accent);}
+.top-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+.top-btn.danger{border-color:var(--red);color:var(--red);}
+.top-btn.danger:hover{background:var(--red);color:var(--bg);}
+
+/* SIM TIME BAR */
+#simbar{display:flex;align-items:center;gap:10px;padding:3px 12px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9px;color:var(--text-mid);flex-shrink:0;flex-wrap:wrap;}
+.si{display:flex;align-items:center;gap:3px;}
+.sl{color:var(--text-dim);}
+.sv{color:var(--green);font-weight:600;}
+.sv.warn{color:var(--yellow);}
+.sv.err{color:var(--red);}
+
+/* MAIN */
+#main{display:flex;flex:1;overflow:hidden;}
+
+/* PANEL — uses touch-action:pan-y so vertical scroll works, sliders get pointer-events blocked during scroll */
+#panel{
+  width:var(--panel-w);flex-shrink:0;
+  background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow-y:scroll;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  scroll-behavior:smooth;
+  /* Critical: allow vertical scrolling on panel even with range inputs */
+  touch-action:pan-y;
+}
+#panel.collapsed{transform:translateX(calc(-1 * var(--panel-w)));position:absolute;z-index:5;height:100%;}
+
+.section{border-bottom:1px solid var(--border);padding:8px 10px;}
+.section-title{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+
+/* Domain info */
+.domain-info{font-size:9px;color:var(--text-dim);line-height:1.8;}
+.domain-info b{color:var(--text-mid);}
+.apply-btn{margin-top:5px;width:100%;padding:4px;border-radius:4px;border:1px solid var(--accent);background:rgba(79,195,247,.07);color:var(--accent);font-family:inherit;font-size:9px;cursor:pointer;transition:all .15s;}
+.apply-btn:hover{background:rgba(79,195,247,.18);}
+
+/* Tool buttons */
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.tool-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 3px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-family:inherit;font-size:8px;transition:all .15s;text-align:center;line-height:1.2;touch-action:manipulation;}
+.tool-btn .ic{font-size:14px;}
+.tool-btn:hover{border-color:var(--accent);color:var(--accent);}
+.tool-btn.active{border-color:var(--accent);background:rgba(79,195,247,.1);color:var(--accent);}
+.tool-btn[data-tool="wall"].active{border-color:#9ca3af;background:rgba(156,163,175,.1);color:#d1d5db;}
+.tool-btn[data-tool="hot"].active{border-color:#f97316;background:rgba(249,115,22,.12);color:#fb923c;}
+.tool-btn[data-tool="cold"].active{border-color:#38bdf8;background:rgba(56,189,248,.1);color:#7dd3fc;}
+.tool-btn[data-tool^="fan"].active{border-color:#a78bfa;background:rgba(167,139,250,.1);color:#c4b5fd;}
+.tool-btn[data-tool="erase"].active{border-color:var(--red);background:rgba(248,113,113,.1);color:var(--red);}
+
+/* Brush */
+.brush-row{display:flex;gap:4px;}
+.brush-btn{flex:1;padding:4px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-family:inherit;font-size:9px;transition:all .15s;text-align:center;touch-action:manipulation;}
+.brush-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(79,195,247,.07);}
+
+/* ── SCROLL-SAFE SLIDERS ──────────────────────────────────────────
+   Wrap each slider in a container that:
+   1. Has touch-action:none (captures touch)
+   2. Only activates on intentional horizontal drag
+   The slider itself does NOT respond to touch scroll passes.
+*/
+.param{margin-bottom:6px;}
+.param-label{display:flex;justify-content:space-between;align-items:baseline;font-size:9px;color:var(--text-dim);margin-bottom:3px;}
+.param-label .vu{color:var(--text);font-size:9px;}
+.slider-wrap{
+  position:relative;height:18px;
+  /* Capture all touch — JS decides horizontal vs vertical */
+  touch-action:none;
+  user-select:none;
+}
+.slider-track{
+  position:absolute;top:50%;left:0;right:0;height:3px;
+  background:var(--border);border-radius:2px;transform:translateY(-50%);
+}
+.slider-fill{
+  position:absolute;top:0;left:0;height:100%;
+  background:var(--accent);border-radius:2px;pointer-events:none;
+}
+.slider-thumb{
+  position:absolute;top:50%;width:13px;height:13px;border-radius:50%;
+  background:var(--accent);transform:translate(-50%,-50%);
+  cursor:pointer;transition:box-shadow .1s;
+  box-shadow:0 0 0 0 rgba(79,195,247,0);
+}
+.slider-thumb.active{box-shadow:0 0 0 4px rgba(79,195,247,.25);}
+/* Hidden native input — used only for keyboard accessibility */
+.slider-native{
+  position:absolute;inset:0;opacity:0;width:100%;height:100%;
+  cursor:pointer;margin:0;
+}
+
+/* Boundary conditions */
+.bc-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.bc-btn{padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-family:inherit;font-size:8px;transition:all .15s;text-align:center;touch-action:manipulation;line-height:1.4;}
+.bc-btn.bc-wall{border-color:#9ca3af;background:rgba(156,163,175,.1);color:#d1d5db;}
+.bc-btn.bc-open{border-color:var(--green);background:rgba(74,222,128,.08);color:var(--green);}
+.bc-btn.bc-hot{border-color:#f97316;background:rgba(249,115,22,.1);color:#fb923c;}
+.bc-btn.bc-cold{border-color:#38bdf8;background:rgba(56,189,248,.08);color:#7dd3fc;}
+.bc-btn.bc-sym{border-color:#a78bfa;background:rgba(167,139,250,.08);color:#c4b5fd;}
+.bc-diagram{display:grid;grid-template-columns:40px 1fr 40px;grid-template-rows:30px 1fr 30px;gap:3px;margin-bottom:8px;align-items:center;justify-items:center;}
+.bc-center{background:rgba(79,195,247,.05);border:1px solid var(--border);border-radius:4px;width:100%;height:100%;grid-column:2;grid-row:2;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text-dim);}
+.bc-side-btn{width:100%;padding:4px 2px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-family:inherit;font-size:7px;transition:all .15s;text-align:center;touch-action:manipulation;line-height:1.4;}
+.bc-side-btn.bc-wall{border-color:#9ca3af;background:rgba(156,163,175,.1);color:#d1d5db;}
+.bc-side-btn.bc-open{border-color:var(--green);background:rgba(74,222,128,.08);color:var(--green);}
+.bc-side-btn.bc-hot{border-color:#f97316;background:rgba(249,115,22,.1);color:#fb923c;}
+.bc-side-btn.bc-cold{border-color:#38bdf8;background:rgba(56,189,248,.08);color:#7dd3fc;}
+.bc-side-btn.bc-sym{border-color:#a78bfa;background:rgba(167,139,250,.08);color:#c4b5fd;}
+
+/* Legend */
+.legend-bar{width:100%;height:10px;border-radius:3px;background:linear-gradient(to right,#00008b,#0000ff,#00ffff,#00ff00,#ffff00,#ff4500,#ff0000);}
+.legend-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--text-dim);margin-top:2px;}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;}
+.stat-item{display:flex;flex-direction:column;}
+.stat-lbl{font-size:8px;color:var(--text-dim);}
+.stat-val{font-size:9px;color:var(--green);}
+
+/* Preset list */
+.preset-list{display:flex;flex-direction:column;gap:3px;}
+.preset-group-title{font-size:8px;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase;margin-top:6px;margin-bottom:2px;}
+.preset-btn{width:100%;padding:5px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-mid);cursor:pointer;font-family:inherit;font-size:9px;transition:all .15s;text-align:left;touch-action:manipulation;line-height:1.4;}
+.preset-btn:hover{border-color:var(--accent);color:var(--accent);}
+.preset-btn .ptag{font-size:7px;color:var(--text-dim);margin-left:4px;}
+
+/* Canvas area */
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#000;cursor:crosshair;}
+#sim-canvas{position:absolute;top:0;left:0;image-rendering:pixelated;}
+#ruler-canvas{position:absolute;top:0;left:0;pointer-events:none;}
+
+#panel-toggle{display:none;position:absolute;top:8px;left:8px;z-index:20;width:32px;height:32px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:16px;cursor:pointer;align-items:center;justify-content:center;}
+
+#viz-bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:10;background:rgba(10,10,20,.9);padding:5px 8px;border-radius:16px;border:1px solid var(--border);backdrop-filter:blur(8px);}
+.viz-btn{padding:3px 8px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--text-dim);cursor:pointer;font-family:inherit;font-size:9px;transition:all .15s;touch-action:manipulation;}
+.viz-btn.active{background:rgba(79,195,247,.18);border-color:var(--accent);color:var(--accent);}
+
+#hud{position:absolute;top:8px;right:8px;z-index:10;display:flex;flex-direction:column;gap:3px;align-items:flex-end;}
+.hud-pill{background:rgba(7,7,16,.88);border:1px solid var(--border);border-radius:5px;padding:3px 7px;font-size:9px;color:var(--text-dim);}
+.hud-pill span{color:var(--text-mid);}
+
+#tooltip{position:absolute;z-index:20;background:rgba(7,7,16,.96);border:1px solid var(--border2);border-radius:6px;padding:5px 9px;font-size:9px;pointer-events:none;display:none;white-space:nowrap;color:var(--text);line-height:1.8;}
+
+/* MODAL */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+#modal-overlay.open{display:flex;}
+#modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px;width:min(440px,93vw);max-height:85vh;overflow-y:auto;}
+#modal h2{font-family:'Syne',sans-serif;font-size:15px;color:var(--accent);margin-bottom:10px;}
+.modal-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px;}
+.modal-field{display:flex;flex-direction:column;gap:3px;}
+.modal-field label{font-size:9px;color:var(--text-dim);}
+.modal-field input{background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:inherit;font-size:11px;padding:5px 7px;outline:none;width:100%;}
+.modal-field input:focus{border-color:var(--accent);}
+.modal-note{font-size:9px;color:var(--text-dim);margin-bottom:10px;line-height:1.65;padding:6px 8px;background:rgba(79,195,247,.05);border-radius:5px;border-left:2px solid var(--accent);}
+#modal-derived{font-size:9px;color:var(--text-mid);margin-bottom:10px;line-height:1.8;padding:5px 7px;background:rgba(255,255,255,.03);border-radius:4px;}
+.modal-btns{display:flex;gap:7px;justify-content:flex-end;}
+
+@media(max-width:600px){
+  #panel{position:absolute;height:100%;z-index:15;}
+  #panel-toggle{display:flex;}
+  :root{--panel-w:226px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="topbar">
+  <h1>Thermo<span>Sim</span></h1>
+  <div class="spacer"></div>
+  <button class="top-btn active" id="btn-play">⏸ Pause</button>
+  <button class="top-btn" id="btn-step">▷ Step</button>
+  <button class="top-btn" id="btn-reset-fields">↺ Champs</button>
+  <button class="top-btn danger" id="btn-clear">✕ Effacer</button>
+  <button class="top-btn" id="btn-domain-top">⚙ Domaine</button>
+</div>
+<div id="simbar">
+  <div class="si"><span class="sl">t =</span><span class="sv" id="st-simtime">0.00 s</span></div>
+  <div class="si"><span class="sl">dt =</span><span class="sv" id="st-dt">—</span></div>
+  <div class="si"><span class="sl">CFL =</span><span class="sv" id="st-cfl">—</span></div>
+  <div class="si"><span class="sl">dx×dy =</span><span class="sv" id="st-dxdy">—</span></div>
+  <div class="si"><span class="sl">FPS =</span><span class="sv" id="st-fps">—</span></div>
+  <div class="si"><span class="sl">×</span><span class="sv" id="st-accel">1.0</span></div>
+  <div class="spacer"></div>
+  <div class="si"><span class="sl">Re≈</span><span class="sv" id="st-re">—</span></div>
+  <div class="si"><span class="sl">Ra≈</span><span class="sv" id="st-ra">—</span></div>
+  <div class="si"><span class="sl">Pr=</span><span class="sv" id="st-pr">—</span></div>
+</div>
+
+<div id="main">
+<div id="panel" id="panel">
+
+  <!-- DOMAIN -->
+  <div class="section">
+    <div class="section-title">Domaine physique</div>
+    <div class="domain-info">
+      Lx=<b id="info-lx">—</b> m | Ly=<b id="info-ly">—</b> m<br>
+      Grille <b id="info-nx">—</b>×<b id="info-ny">—</b> | dx=<b id="info-dx">—</b> m | dy=<b id="info-dy">—</b> m
+    </div>
+    <button class="apply-btn" id="btn-domain-panel">✎ Modifier le domaine…</button>
+  </div>
+
+  <!-- BOUNDARY CONDITIONS -->
+  <div class="section">
+    <div class="section-title">Conditions aux limites</div>
+    <div class="bc-diagram">
+      <!-- top row -->
+      <div></div>
+      <button class="bc-side-btn" id="bc-top" data-side="top">⬆ Haut<br><span id="bc-top-lbl">Mur</span></button>
+      <div></div>
+      <!-- middle row -->
+      <button class="bc-side-btn" id="bc-left" data-side="left" style="writing-mode:initial;width:38px;font-size:7px;">⬅ Gauche<br><span id="bc-left-lbl">Mur</span></button>
+      <div class="bc-center">domaine</div>
+      <button class="bc-side-btn" id="bc-right" data-side="right" style="width:38px;font-size:7px;">Droite ➡<br><span id="bc-right-lbl">Mur</span></button>
+      <!-- bottom row -->
+      <div></div>
+      <button class="bc-side-btn" id="bc-bottom" data-side="bottom">⬇ Bas<br><span id="bc-bottom-lbl">Mur</span></button>
+      <div></div>
+    </div>
+    <div style="font-size:8px;color:var(--text-dim);margin-bottom:5px;">Cliquer sur un bord pour cycler&nbsp;:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;font-size:8px;">
+      <span style="border:1px solid #9ca3af;border-radius:3px;padding:1px 5px;color:#d1d5db;">Mur</span>
+      <span style="border:1px solid var(--green);border-radius:3px;padding:1px 5px;color:var(--green);">Ouvert</span>
+      <span style="border:1px solid #f97316;border-radius:3px;padding:1px 5px;color:#fb923c;">Chaud</span>
+      <span style="border:1px solid #38bdf8;border-radius:3px;padding:1px 5px;color:#7dd3fc;">Froid</span>
+      <span style="border:1px solid #a78bfa;border-radius:3px;padding:1px 5px;color:#c4b5fd;">Symétrie</span>
+    </div>
+  </div>
+
+  <!-- TOOLS -->
+  <div class="section">
+    <div class="section-title">Outils de dessin</div>
+    <div class="tool-grid">
+      <button class="tool-btn active" data-tool="hot"><span class="ic">🔥</span>Source chaude</button>
+      <button class="tool-btn" data-tool="cold"><span class="ic">❄️</span>Source froide</button>
+      <button class="tool-btn" data-tool="wall"><span class="ic">🧱</span>Mur (CFD)</button>
+      <button class="tool-btn" data-tool="fan_right"><span class="ic">💨</span>Ventil. →</button>
+      <button class="tool-btn" data-tool="fan_up"><span class="ic">💨</span>Ventil. ↑</button>
+      <button class="tool-btn" data-tool="fan_down"><span class="ic">💨</span>Ventil. ↓</button>
+      <button class="tool-btn" data-tool="fan_left"><span class="ic">💨</span>Ventil. ←</button>
+      <button class="tool-btn" data-tool="erase"><span class="ic">🗑️</span>Effacer</button>
+    </div>
+    <div style="font-size:8px;color:var(--text-dim);margin-top:5px;line-height:1.5;">
+      🧱 Mur = obstacle solide adiabatique (bloque le flux, neutre thermiquement)
+    </div>
+  </div>
+
+  <!-- BRUSH -->
+  <div class="section">
+    <div class="section-title">Taille du pinceau</div>
+    <div class="brush-row">
+      <button class="brush-btn active" data-brush="1">1×1</button>
+      <button class="brush-btn" data-brush="3">3×3</button>
+      <button class="brush-btn" data-brush="5">5×5</button>
+      <button class="brush-btn" data-brush="9">9×9</button>
+    </div>
+  </div>
+
+  <!-- PHYSICS PARAMS -->
+  <div class="section">
+    <div class="section-title">Paramètres physiques (SI)</div>
+    <div class="param" id="param-visc">
+      <div class="param-label">Viscosité ν<span class="vu"><span id="v-visc">1.52e-5</span> m²/s</span></div>
+      <div class="slider-wrap" data-min="-7" data-max="-2" data-step="0.05" data-log="1" data-key="visc" data-disp="v-visc" data-fmt="exp">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="-7" max="-2" step="0.05" value="-4.818">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">Diffus. therm. α<span class="vu"><span id="v-diff">2.13e-5</span> m²/s</span></div>
+      <div class="slider-wrap" data-min="-7" data-max="-2" data-step="0.05" data-log="1" data-key="diff" data-disp="v-diff" data-fmt="exp">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="-7" max="-2" step="0.05" value="-4.672">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">Expan. therm. β<span class="vu"><span id="v-buoy">3.41e-3</span> K⁻¹</span></div>
+      <div class="slider-wrap" data-min="-5" data-max="-1" data-step="0.05" data-log="1" data-key="beta" data-disp="v-buoy" data-fmt="exp">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="-5" max="-1" step="0.05" value="-2.467">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">Gravité g<span class="vu"><span id="v-grav">9.81</span> m/s²</span></div>
+      <div class="slider-wrap" data-min="0" data-max="30" data-step="0.05" data-log="0" data-key="gravity" data-disp="v-grav" data-fmt="2f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="0" max="30" step="0.05" value="9.81">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">T ambiante<span class="vu"><span id="v-tamb">20.0</span> °C</span></div>
+      <div class="slider-wrap" data-min="-20" data-max="50" data-step="0.5" data-log="0" data-key="T_amb" data-disp="v-tamb" data-fmt="1f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="-20" max="50" step="0.5" value="20">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">T source chaude<span class="vu"><span id="v-thot">80.0</span> °C</span></div>
+      <div class="slider-wrap" data-min="21" data-max="600" data-step="1" data-log="0" data-key="T_hot" data-disp="v-thot" data-fmt="1f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="21" max="600" step="1" value="80">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">T source froide<span class="vu"><span id="v-tcold">0.0</span> °C</span></div>
+      <div class="slider-wrap" data-min="-50" data-max="19" data-step="0.5" data-log="0" data-key="T_cold" data-disp="v-tcold" data-fmt="1f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="-50" max="19" step="0.5" value="0">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">Vitesse ventil.<span class="vu"><span id="v-fspeed">2.00</span> m/s</span></div>
+      <div class="slider-wrap" data-min="0.05" data-max="20" data-step="0.05" data-log="0" data-key="fan_speed" data-disp="v-fspeed" data-fmt="2f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="0.05" max="20" step="0.05" value="2.0">
+      </div>
+    </div>
+  </div>
+
+  <!-- NUMERICAL CONTROL -->
+  <div class="section">
+    <div class="section-title">Contrôle numérique</div>
+    <div class="param">
+      <div class="param-label">CFL cible<span class="vu"><span id="v-cfl">0.50</span></span></div>
+      <div class="slider-wrap" data-min="0.05" data-max="0.95" data-step="0.05" data-log="0" data-key="cfl" data-disp="v-cfl" data-fmt="2f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="0.05" max="0.95" step="0.05" value="0.5">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">Steps / frame<span class="vu"><span id="v-spf">2</span></span></div>
+      <div class="slider-wrap" data-min="1" data-max="20" data-step="1" data-log="0" data-key="spf" data-disp="v-spf" data-fmt="0f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="1" max="20" step="1" value="2">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">Itérations solveur<span class="vu"><span id="v-iter">20</span></span></div>
+      <div class="slider-wrap" data-min="5" data-max="60" data-step="1" data-log="0" data-key="iter" data-disp="v-iter" data-fmt="0f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="5" max="60" step="1" value="20">
+      </div>
+    </div>
+    <div class="param">
+      <div class="param-label">Accél. simulation<span class="vu"><span id="v-simspeed">1.0</span>×</span></div>
+      <div class="slider-wrap" data-min="0.1" data-max="20" data-step="0.1" data-log="0" data-key="sim_speed" data-disp="v-simspeed" data-fmt="1f">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+        <input class="slider-native" type="range" min="0.1" max="20" step="0.1" value="1.0">
+      </div>
+    </div>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="section">
+    <div class="section-title">Légende température</div>
+    <div class="legend-bar"></div>
+    <div class="legend-labels"><span id="leg-min">—</span><span id="leg-mid">—</span><span id="leg-max">—</span></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="section">
+    <div class="section-title">Mesures</div>
+    <div class="stats-grid">
+      <div class="stat-item"><span class="stat-lbl">T max</span><span class="stat-val" id="st-tmax">—</span></div>
+      <div class="stat-item"><span class="stat-lbl">T min</span><span class="stat-val" id="st-tmin">—</span></div>
+      <div class="stat-item"><span class="stat-lbl">|v| max</span><span class="stat-val" id="st-vmax">—</span></div>
+      <div class="stat-item"><span class="stat-lbl">|v| moy</span><span class="stat-val" id="st-vmoy">—</span></div>
+    </div>
+  </div>
+
+  <!-- PRESETS -->
+  <div class="section">
+    <div class="section-title">Exemples physiques réels</div>
+    <div class="preset-list">
+
+      <div class="preset-group-title">🏠 Bâtiment & thermique</div>
+      <button class="preset-btn" data-preset="room_radiator">🔥 Pièce avec radiateur<span class="ptag">convection naturelle</span></button>
+      <button class="preset-btn" data-preset="room_ac">❄️ Pièce avec clim + sol chaud<span class="ptag">gradient vertical</span></button>
+      <button class="preset-btn" data-preset="double_vitrage">🪟 Double vitrage (pont therm.)<span class="ptag">conduction/convection</span></button>
+      <button class="preset-btn" data-preset="fan_ventilation">🌀 Ventilation mécanique<span class="ptag">brassage forcé</span></button>
+
+      <div class="preset-group-title">🌤️ Atmosphère & météo</div>
+      <button class="preset-btn" data-preset="benard">🌪️ Cellules de Bénard<span class="ptag">convection RB classique</span></button>
+      <button class="preset-btn" data-preset="thermal_plume">☀️ Thermique de convection<span class="ptag">panache ascendant</span></button>
+      <button class="preset-btn" data-preset="sea_breeze">🌊 Brise de mer<span class="ptag">gradient côtier</span></button>
+      <button class="preset-btn" data-preset="urban_heat">🏙️ Îlot de chaleur urbain<span class="ptag">ville vs campagne</span></button>
+
+      <div class="preset-group-title">🏭 Industriel & ingénierie</div>
+      <button class="preset-btn" data-preset="hot_pipe">🔵 Tuyau chaud en milieu libre<span class="ptag">panache thermique</span></button>
+      <button class="preset-btn" data-preset="heat_exchanger">♻️ Échangeur à contre-courant<span class="ptag">deux flux</span></button>
+      <button class="preset-btn" data-preset="cpu_cooling">💻 Refroidissement CPU + ventil.<span class="ptag">air forcé sur ailette</span></button>
+      <button class="preset-btn" data-preset="chimney">🏠 Effet cheminée<span class="ptag">tirage thermique</span></button>
+
+      <div class="preset-group-title">🔬 Physique fondamentale</div>
+      <button class="preset-btn" data-preset="diff_only">🌡️ Diffusion pure (sans convection)<span class="ptag">loi de Fourier</span></button>
+      <button class="preset-btn" data-preset="lid_driven">🔄 Cavité entrainée (lid-driven)<span class="ptag">recirculation de Taylor</span></button>
+      <button class="preset-btn" data-preset="rayleigh_benard_strong">🌊 Rayleigh-Bénard intense<span class="ptag">turbulence thermique</span></button>
+    </div>
+  </div>
+
+</div><!-- end panel -->
+
+<div id="canvas-wrap">
+  <button id="panel-toggle">☰</button>
+  <canvas id="sim-canvas"></canvas>
+  <canvas id="ruler-canvas"></canvas>
+  <div id="viz-bar">
+    <button class="viz-btn active" data-viz="temp">🌡 Temp</button>
+    <button class="viz-btn" data-viz="vel">💨 Vit.</button>
+    <button class="viz-btn" data-viz="both">⚡ Les deux</button>
+    <button class="viz-btn" data-viz="stream">〰 Lignes</button>
+  </div>
+  <div id="hud">
+    <div class="hud-pill">zoom <span id="hud-zoom">1.00×</span></div>
+    <div class="hud-pill" id="hud-cursor" style="min-width:110px;text-align:right;"></div>
+  </div>
+  <div id="tooltip"></div>
+</div>
+</div>
+</div>
+
+<!-- DOMAIN MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h2>⚙ Domaine physique</h2>
+    <div class="modal-note">
+      dx=Lx/Nx, dy=Ly/Ny. Le pas de temps dt est calculé via CFL&nbsp;:<br>
+      <b>dt = CFL·min(dx,dy) / max(|v|, v_ventil, 0.01) × accél.</b><br>
+      Modifier le domaine remet la simulation à zéro.
+    </div>
+    <div class="modal-row">
+      <div class="modal-field"><label>Largeur Lx (m)</label><input type="number" id="m-lx" value="5" min="0.001" step="0.1"></div>
+      <div class="modal-field"><label>Hauteur Ly (m)</label><input type="number" id="m-ly" value="5" min="0.001" step="0.1"></div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field"><label>Nx — cellules X</label><input type="number" id="m-nx" value="64" min="8" max="256" step="4"></div>
+      <div class="modal-field"><label>Ny — cellules Y</label><input type="number" id="m-ny" value="64" min="8" max="256" step="4"></div>
+    </div>
+    <div id="modal-derived"></div>
+    <div class="modal-btns">
+      <button class="top-btn" id="m-cancel">Annuler</button>
+      <button class="top-btn active" id="m-apply">✔ Appliquer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════
+// DOMAIN
+// ═══════════════════════════════════════════
+let Lx=5,Ly=5,Nx=64,Ny=64,dx,dy;
+function computeDxDy(){dx=Lx/Nx;dy=Ly/Ny;}
+computeDxDy();
+
+// Cell types
+const C_FLUID=0,C_WALL=1,C_HOT=2,C_COLD=3,C_FAN_R=4,C_FAN_L=5,C_FAN_U=6,C_FAN_D=7;
+
+// Boundary condition types per side: 'wall','open','hot','cold','sym'
+let BC={top:'wall',bottom:'wall',left:'wall',right:'wall'};
+const BC_CYCLE=['wall','open','hot','cold','sym'];
+const BC_LABEL={wall:'Mur',open:'Ouvert',hot:'Chaud',cold:'Froid',sym:'Symétrie'};
+const BC_CLASS={wall:'bc-wall',open:'bc-open',hot:'bc-hot',cold:'bc-cold',sym:'bc-sym'};
+
+let U,V,U0,V0,T,T0,pres,divg,cellType;
+function alloc(){
+  const s=(Nx+2)*(Ny+2);
+  U=new Float32Array(s);V=new Float32Array(s);
+  U0=new Float32Array(s);V0=new Float32Array(s);
+  T=new Float32Array(s);T0=new Float32Array(s);
+  pres=new Float32Array(s);divg=new Float32Array(s);
+  cellType=new Uint8Array(s);
+}
+alloc();
+function idx(i,j){return i*(Ny+2)+j;}
+
+// ═══════════════════════════════════════════
+// PHYSICAL PARAMETERS
+// ═══════════════════════════════════════════
+let P={
+  visc:1.516e-5, diff:2.13e-5, beta:3.41e-3,
+  gravity:9.81, T_amb:20, T_hot:80, T_cold:0,
+  fan_speed:2.0, cfl:0.5, spf:2, iter:20, sim_speed:1.0
+};
+let simTime=0,dt_cur=0.01;
+
+function computeDt(vmax){
+  const v=Math.max(vmax,P.fan_speed,0.01);
+  return Math.max(1e-6, P.cfl*Math.min(dx,dy)/v*P.sim_speed);
+}
+
+// ═══════════════════════════════════════════
+// BOUNDARY CONDITIONS (per-side, physical)
+// ═══════════════════════════════════════════
+function applyBoundaryConditions(){
+  // Apply per-side BCs to the ghost cells
+  // Velocity ghost cells
+  for(let i=1;i<=Nx;i++){
+    // TOP (j=1 is first interior, j=0 is ghost above)
+    const jt=1;
+    switch(BC.top){
+      case'wall': U[idx(i,0)]=-U[idx(i,jt)]; V[idx(i,0)]=0; T[idx(i,0)]=T[idx(i,jt)]; break; // adiabatic no-slip
+      case'open': U[idx(i,0)]=U[idx(i,jt)]; V[idx(i,0)]=Math.min(0,V[idx(i,jt)]); T[idx(i,0)]=P.T_amb; break;
+      case'hot':  U[idx(i,0)]=-U[idx(i,jt)]; V[idx(i,0)]=0; T[idx(i,0)]=2*P.T_hot-T[idx(i,jt)]; break;
+      case'cold': U[idx(i,0)]=-U[idx(i,jt)]; V[idx(i,0)]=0; T[idx(i,0)]=2*P.T_cold-T[idx(i,jt)]; break;
+      case'sym':  U[idx(i,0)]=U[idx(i,jt)]; V[idx(i,0)]=-V[idx(i,jt)]; T[idx(i,0)]=T[idx(i,jt)]; break;
+    }
+    // BOTTOM (j=Ny interior, j=Ny+1 ghost)
+    const jb=Ny;
+    switch(BC.bottom){
+      case'wall': U[idx(i,Ny+1)]=-U[idx(i,jb)]; V[idx(i,Ny+1)]=0; T[idx(i,Ny+1)]=T[idx(i,jb)]; break;
+      case'open': U[idx(i,Ny+1)]=U[idx(i,jb)]; V[idx(i,Ny+1)]=Math.max(0,V[idx(i,jb)]); T[idx(i,Ny+1)]=P.T_amb; break;
+      case'hot':  U[idx(i,Ny+1)]=-U[idx(i,jb)]; V[idx(i,Ny+1)]=0; T[idx(i,Ny+1)]=2*P.T_hot-T[idx(i,jb)]; break;
+      case'cold': U[idx(i,Ny+1)]=-U[idx(i,jb)]; V[idx(i,Ny+1)]=0; T[idx(i,Ny+1)]=2*P.T_cold-T[idx(i,jb)]; break;
+      case'sym':  U[idx(i,Ny+1)]=U[idx(i,jb)]; V[idx(i,Ny+1)]=-V[idx(i,jb)]; T[idx(i,Ny+1)]=T[idx(i,jb)]; break;
+    }
+  }
+  for(let j=1;j<=Ny;j++){
+    // LEFT (i=1 interior, i=0 ghost)
+    const il=1;
+    switch(BC.left){
+      case'wall': U[idx(0,j)]=0; V[idx(0,j)]=-V[idx(il,j)]; T[idx(0,j)]=T[idx(il,j)]; break;
+      case'open': U[idx(0,j)]=Math.min(0,U[idx(il,j)]); V[idx(0,j)]=V[idx(il,j)]; T[idx(0,j)]=P.T_amb; break;
+      case'hot':  U[idx(0,j)]=0; V[idx(0,j)]=-V[idx(il,j)]; T[idx(0,j)]=2*P.T_hot-T[idx(il,j)]; break;
+      case'cold': U[idx(0,j)]=0; V[idx(0,j)]=-V[idx(il,j)]; T[idx(0,j)]=2*P.T_cold-T[idx(il,j)]; break;
+      case'sym':  U[idx(0,j)]=-U[idx(il,j)]; V[idx(0,j)]=V[idx(il,j)]; T[idx(0,j)]=T[idx(il,j)]; break;
+    }
+    // RIGHT (i=Nx interior, i=Nx+1 ghost)
+    const ir=Nx;
+    switch(BC.right){
+      case'wall': U[idx(Nx+1,j)]=0; V[idx(Nx+1,j)]=-V[idx(ir,j)]; T[idx(Nx+1,j)]=T[idx(ir,j)]; break;
+      case'open': U[idx(Nx+1,j)]=Math.max(0,U[idx(ir,j)]); V[idx(Nx+1,j)]=V[idx(ir,j)]; T[idx(Nx+1,j)]=P.T_amb; break;
+      case'hot':  U[idx(Nx+1,j)]=0; V[idx(Nx+1,j)]=-V[idx(ir,j)]; T[idx(Nx+1,j)]=2*P.T_hot-T[idx(ir,j)]; break;
+      case'cold': U[idx(Nx+1,j)]=0; V[idx(Nx+1,j)]=-V[idx(ir,j)]; T[idx(Nx+1,j)]=2*P.T_cold-T[idx(ir,j)]; break;
+      case'sym':  U[idx(Nx+1,j)]=-U[idx(ir,j)]; V[idx(Nx+1,j)]=V[idx(ir,j)]; T[idx(Nx+1,j)]=T[idx(ir,j)]; break;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// PHYSICS SOLVERS
+// ═══════════════════════════════════════════
+function applyInternalBC(){
+  // Walls: no-slip, ADIABATIC (no temperature forcing — just block velocity)
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    const c=cellType[idx(i,j)];
+    if(c===C_WALL){
+      U[idx(i,j)]=0; V[idx(i,j)]=0;
+      // Adiabatic: T unchanged (no thermal BC)
+    }
+    else if(c===C_HOT){T[idx(i,j)]=P.T_hot;U[idx(i,j)]=0;V[idx(i,j)]=0;}
+    else if(c===C_COLD){T[idx(i,j)]=P.T_cold;U[idx(i,j)]=0;V[idx(i,j)]=0;}
+    else if(c===C_FAN_R){U[idx(i,j)]=P.fan_speed;V[idx(i,j)]=0;}
+    else if(c===C_FAN_L){U[idx(i,j)]=-P.fan_speed;V[idx(i,j)]=0;}
+    else if(c===C_FAN_U){V[idx(i,j)]=-P.fan_speed;U[idx(i,j)]=0;}
+    else if(c===C_FAN_D){V[idx(i,j)]=P.fan_speed;U[idx(i,j)]=0;}
+  }
+}
+
+function applyAllBC(){applyBoundaryConditions();applyInternalBC();}
+
+function linSolve(x,x0,ax,ay,iters){
+  const c=1+2*ax+2*ay,cR=1/c;
+  for(let k=0;k<iters;k++){
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+      if(cellType[idx(i,j)]===C_WALL){x[idx(i,j)]=0;continue;}
+      x[idx(i,j)]=(x0[idx(i,j)]+ax*(x[idx(i+1,j)]+x[idx(i-1,j)])+ay*(x[idx(i,j+1)]+x[idx(i,j-1)]))*cR;
+    }
+    applyBoundaryConditions();
+  }
+}
+function diffuse(x,x0,coeff,dt){
+  const ax=dt*coeff/(dx*dx),ay=dt*coeff/(dy*dy);
+  linSolve(x,x0,ax,ay,P.iter);
+}
+function advect(d,d0,u,v,dt){
+  const dtx=dt/dx,dty=dt/dy;
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    if(cellType[idx(i,j)]===C_WALL) continue;
+    let x=i-dtx*u[idx(i,j)],y=j-dty*v[idx(i,j)];
+    x=Math.max(.5,Math.min(Nx+.5,x));y=Math.max(.5,Math.min(Ny+.5,y));
+    const i0=Math.floor(x),i1=i0+1,j0=Math.floor(y),j1=j0+1;
+    const s1=x-i0,s0=1-s1,t1=y-j0,t0=1-t1;
+    d[idx(i,j)]=s0*(t0*d0[idx(i0,j0)]+t1*d0[idx(i0,j1)])+s1*(t0*d0[idx(i1,j0)]+t1*d0[idx(i1,j1)]);
+  }
+  applyBoundaryConditions();
+}
+function project(u,v,p,dv){
+  const ax=1/(dx*dx),ay=1/(dy*dy),c=2*(ax+ay);
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    dv[idx(i,j)]=-.5*((u[idx(i+1,j)]-u[idx(i-1,j)])/dx+(v[idx(i,j+1)]-v[idx(i,j-1)])/dy);
+    p[idx(i,j)]=0;
+  }
+  applyBoundaryConditions();
+  for(let k=0;k<P.iter;k++){
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++)
+      p[idx(i,j)]=(dv[idx(i,j)]+ax*(p[idx(i+1,j)]+p[idx(i-1,j)])+ay*(p[idx(i,j+1)]+p[idx(i,j-1)]))/c;
+    applyBoundaryConditions();
+  }
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    if(cellType[idx(i,j)]===C_WALL) continue;
+    u[idx(i,j)]-=.5*(p[idx(i+1,j)]-p[idx(i-1,j)])/dx;
+    v[idx(i,j)]-=.5*(p[idx(i,j+1)]-p[idx(i,j-1)])/dy;
+  }
+  applyBoundaryConditions();
+}
+function buoyancy(v,T,dt){
+  const g=P.gravity,b=P.beta,Ta=P.T_amb;
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    if(cellType[idx(i,j)]!==C_FLUID) continue;
+    v[idx(i,j)]+=dt*(-g*b*(T[idx(i,j)]-Ta));
+  }
+}
+function step(dt){
+  applyAllBC();
+  buoyancy(V,T,dt);
+  U0.set(U);V0.set(V);
+  diffuse(U,U0,P.visc,dt);diffuse(V,V0,P.visc,dt);
+  project(U,V,pres,divg);
+  U0.set(U);V0.set(V);
+  advect(U,U0,U0,V0,dt);advect(V,V0,U0,V0,dt);
+  project(U,V,pres,divg);
+  applyAllBC();
+  T0.set(T);diffuse(T,T0,P.diff,dt);
+  T0.set(T);advect(T,T0,U,V,dt);
+  applyAllBC();
+}
+
+// ═══════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════
+const wrap=document.getElementById('canvas-wrap');
+const canvas=document.getElementById('sim-canvas');
+const ctx=canvas.getContext('2d');
+const rcv=document.getElementById('ruler-canvas');
+const rctx=rcv.getContext('2d');
+let W,H,cellPx,zoom=1,panX=0,panY=0,vizMode='temp';
+
+function resize(){
+  const r=wrap.getBoundingClientRect();W=r.width;H=r.height;
+  [canvas,rcv].forEach(c=>{c.width=W;c.height=H;c.style.width=W+'px';c.style.height=H+'px';});
+  cellPx=Math.min(W,H)/Math.max(Nx,Ny);
+}
+resize();window.addEventListener('resize',resize);
+
+function tempRGB(t,lo,hi){
+  let v=Math.max(0,Math.min(1,(t-lo)/(hi-lo)));
+  const S=[[0,[0,0,128]],[.18,[0,25,220]],[.38,[0,210,220]],[.5,[0,170,0]],[.65,[255,215,0]],[.82,[255,90,0]],[1,[200,0,0]]];
+  let a=S[0],b=S[S.length-1];
+  for(let k=0;k<S.length-1;k++) if(v>=S[k][0]&&v<=S[k+1][0]){a=S[k];b=S[k+1];break;}
+  const f=(v-a[0])/(b[0]-a[0]);
+  return[a[1][0]+(b[1][0]-a[1][0])*f,a[1][1]+(b[1][1]-a[1][1])*f,a[1][2]+(b[1][2]-a[1][2])*f];
+}
+const offC=document.createElement('canvas');let offCtx;
+function ensureOff(){if(offC.width!==Nx||offC.height!==Ny){offC.width=Nx;offC.height=Ny;offCtx=offC.getContext('2d');}}
+
+let stats={tMin:0,tMax:100,vMax:0,vAvg:0};
+function gatherStats(){
+  let tMin=Infinity,tMax=-Infinity,vMax=0,vSum=0,n=0;
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    const t=T[idx(i,j)];if(t<tMin)tMin=t;if(t>tMax)tMax=t;
+    const sp=Math.hypot(U[idx(i,j)],V[idx(i,j)]);if(sp>vMax)vMax=sp;vSum+=sp;n++;
+  }
+  if(!isFinite(tMin)){tMin=P.T_cold;tMax=P.T_hot;}
+  if(tMax===tMin)tMax=tMin+1;
+  stats={tMin,tMax,vMax,vAvg:n?vSum/n:0};
+}
+
+function getGeo(){const gw=Nx*cellPx*zoom,gh=Ny*cellPx*zoom;return{gw,gh,ox:(W-gw)/2+panX,oy:(H-gh)/2+panY};}
+
+function render(){
+  ensureOff();
+  const{tMin,tMax,vMax}=stats;
+  const{gw,gh,ox,oy}=getGeo();
+  ctx.fillStyle='#020208';ctx.fillRect(0,0,W,H);
+
+  if(vizMode!=='vel'){
+    const img=offCtx.getImageData(0,0,Nx,Ny);const d=img.data;
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+      const ct=cellType[idx(i,j)];const px=((j-1)*Nx+(i-1))*4;
+      if(ct===C_WALL){d[px]=65;d[px+1]=68;d[px+2]=80;d[px+3]=255;}
+      else{
+        const[r,g,b]=tempRGB(T[idx(i,j)],tMin,tMax);
+        d[px]=r;d[px+1]=g;d[px+2]=b;d[px+3]=255;
+        if(ct>=C_FAN_R){d[px]=70;d[px+1]=30;d[px+2]=170;}
+      }
+    }
+    offCtx.putImageData(img,0,0);
+    ctx.imageSmoothingEnabled=false;ctx.drawImage(offC,ox,oy,gw,gh);
+  } else {ctx.fillStyle='#040414';ctx.fillRect(ox,oy,gw,gh);}
+
+  if(vizMode==='vel'||vizMode==='both'){
+    const st=Math.max(3,Math.floor(7/zoom));
+    for(let i=st;i<=Nx;i+=st) for(let j=st;j<=Ny;j+=st){
+      const u=U[idx(i,j)],v=V[idx(i,j)],sp=Math.hypot(u,v);if(sp<.0005)continue;
+      const cx=ox+(i-.5)/Nx*gw,cy=oy+(j-.5)/Ny*gh;
+      const ml=cellPx*zoom*st*.42,sc=Math.min(ml,sp/Math.max(vMax,.01)*ml+ml*.1);
+      const nx=u/sp,ny=v/sp,al=Math.min(.9,sp/Math.max(vMax,.01)*.7+.2);
+      ctx.globalAlpha=al;ctx.strokeStyle='#fff';ctx.lineWidth=.8;
+      ctx.beginPath();ctx.moveTo(cx-nx*sc*.45,cy-ny*sc*.45);ctx.lineTo(cx+nx*sc*.55,cy+ny*sc*.55);ctx.stroke();
+      const ax=cx+nx*sc*.55,ay=cy+ny*sc*.55,pw=sc*.26;
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(ax,ay);
+      ctx.lineTo(ax-nx*pw-ny*pw*.5,ay-ny*pw+nx*pw*.5);ctx.lineTo(ax-nx*pw+ny*pw*.5,ay-ny*pw-nx*pw*.5);
+      ctx.closePath();ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+  if(vizMode==='stream'){
+    ctx.strokeStyle='rgba(170,200,255,.4)';ctx.lineWidth=.6;
+    for(let s=0;s<35;s++){
+      let x=1+Math.random()*(Nx-2),y=1+Math.random()*(Ny-2);ctx.beginPath();
+      for(let l=0;l<90;l++){
+        const ii=Math.max(1,Math.min(Nx,Math.round(x))),jj=Math.max(1,Math.min(Ny,Math.round(y)));
+        if(cellType[idx(ii,jj)]===C_WALL)break;
+        const u=U[idx(ii,jj)],v=V[idx(ii,jj)],sp=Math.hypot(u,v);if(sp<.002)break;
+        const px=ox+(x-.5)/Nx*gw,py=oy+(y-.5)/Ny*gh;
+        l===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+        x+=u/sp*.35;y+=v/sp*.35;if(x<1||x>Nx||y<1||y>Ny)break;
+      }ctx.stroke();
+    }
+  }
+  if(zoom>2){
+    const fnL={[C_HOT]:'🔥',[C_COLD]:'❄️',[C_FAN_R]:'→',[C_FAN_L]:'←',[C_FAN_U]:'↑',[C_FAN_D]:'↓'};
+    ctx.font=`${Math.min(12,cellPx*zoom*.42)}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+      const ct=cellType[idx(i,j)];if(ct===C_FLUID||ct===C_WALL)continue;
+      ctx.fillText(fnL[ct]||'',ox+(i-.5)/Nx*gw,oy+(j-.5)/Ny*gh);
+    }
+  }
+  if(zoom>4&&cellPx*zoom>14){
+    ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=.4;
+    for(let i=0;i<=Nx;i++){const x=ox+i/Nx*gw;ctx.beginPath();ctx.moveTo(x,oy);ctx.lineTo(x,oy+gh);ctx.stroke();}
+    for(let j=0;j<=Ny;j++){const y=oy+j/Ny*gh;ctx.beginPath();ctx.moveTo(ox,y);ctx.lineTo(ox+gw,y);ctx.stroke();}
+  }
+  ctx.strokeStyle='rgba(79,195,247,.3)';ctx.lineWidth=1.5;ctx.strokeRect(ox,oy,gw,gh);
+  drawRulers(ox,oy,gw,gh);
+}
+
+function niceStep(range,ticks){const r=range/ticks,m=Math.pow(10,Math.floor(Math.log10(r)));for(const f of[1,2,2.5,5,10])if(f*m>=r)return f*m;return m;}
+function fmtM(v){if(Math.abs(v)>=100)return v.toFixed(0);if(Math.abs(v)>=10)return v.toFixed(1);if(Math.abs(v)>=1)return v.toFixed(2);if(Math.abs(v)>=.1)return v.toFixed(3);return v.toExponential(2);}
+function fmtTime(s){if(s<60)return s.toFixed(2)+' s';if(s<3600)return(s/60).toFixed(2)+' min';return(s/3600).toFixed(3)+' h';}
+
+function drawRulers(ox,oy,gw,gh){
+  rctx.clearRect(0,0,W,H);
+  rctx.font='8px JetBrains Mono';rctx.fillStyle='rgba(96,96,160,.9)';rctx.strokeStyle='rgba(79,195,247,.2)';rctx.lineWidth=.5;
+  const sx=niceStep(Lx,Math.max(4,Math.floor(gw/60))),sy=niceStep(Ly,Math.max(4,Math.floor(gh/35)));
+  for(let m=0;m<=Lx+1e-9;m+=sx){const px=ox+m/Lx*gw;if(px<ox-1||px>ox+gw+1)continue;rctx.beginPath();rctx.moveTo(px,oy+gh);rctx.lineTo(px,oy+gh+5);rctx.stroke();rctx.fillText(fmtM(m)+'m',px-12,oy+gh+13);}
+  for(let m=0;m<=Ly+1e-9;m+=sy){const py=oy+m/Ly*gh;if(py<oy-1||py>oy+gh+1)continue;rctx.beginPath();rctx.moveTo(ox-5,py);rctx.lineTo(ox,py);rctx.stroke();rctx.textAlign='right';rctx.fillText(fmtM(Ly-m)+'m',ox-7,py+3);rctx.textAlign='left';}
+}
+
+// ═══════════════════════════════════════════
+// MAIN LOOP
+// ═══════════════════════════════════════════
+let running=true,lastTS=0,fpsA=0,fpsF=0,fps=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dtR=Math.min((ts-lastTS)/1000,.1)||.016;lastTS=ts;
+  fpsA+=dtR;fpsF++;if(fpsA>.5){fps=Math.round(fpsF/fpsA);fpsA=0;fpsF=0;}
+  if(running){
+    gatherStats();dt_cur=computeDt(stats.vMax);
+    const dtC=Math.min(dt_cur,5);
+    for(let s=0;s<P.spf;s++){step(dtC);simTime+=dtC;}
+  } else {gatherStats();}
+  render();updateHUD();
+}
+function updateHUD(){
+  const{tMin,tMax,vMax,vAvg}=stats;
+  document.getElementById('st-simtime').textContent=fmtTime(simTime);
+  document.getElementById('st-dt').textContent=dt_cur.toExponential(2)+' s';
+  const cfl_eff=vMax*dt_cur/Math.min(dx,dy);
+  const cel=document.getElementById('st-cfl');cel.textContent=cfl_eff.toFixed(3);cel.className='sv'+(cfl_eff>.85?' warn':'');
+  document.getElementById('st-dxdy').textContent=fmtM(dx)+'×'+fmtM(dy)+' m';
+  document.getElementById('st-fps').textContent=fps;
+  document.getElementById('st-accel').textContent=P.sim_speed.toFixed(1)+'×';
+  const L=Math.min(Lx,Ly);
+  document.getElementById('st-re').textContent=(vMax*L/P.visc).toExponential(2);
+  const dT=Math.max(tMax-P.T_amb,P.T_amb-tMin,1);
+  document.getElementById('st-ra').textContent=(P.gravity*P.beta*dT*Math.pow(L,3)/(P.visc*P.diff)).toExponential(2);
+  document.getElementById('st-pr').textContent=(P.visc/P.diff).toFixed(3);
+  document.getElementById('st-tmax').textContent=tMax.toFixed(2)+' °C';
+  document.getElementById('st-tmin').textContent=tMin.toFixed(2)+' °C';
+  document.getElementById('st-vmax').textContent=vMax.toFixed(4)+' m/s';
+  document.getElementById('st-vmoy').textContent=vAvg.toFixed(4)+' m/s';
+  document.getElementById('leg-min').textContent=tMin.toFixed(1)+'°C';
+  document.getElementById('leg-mid').textContent=((tMin+tMax)/2).toFixed(1)+'°C';
+  document.getElementById('leg-max').textContent=tMax.toFixed(1)+'°C';
+}
+requestAnimationFrame(loop);
+
+// ═══════════════════════════════════════════
+// PRESET LIBRARY
+// ═══════════════════════════════════════════
+function clearAll(){cellType.fill(C_FLUID);T.fill(P.T_amb);T0.fill(P.T_amb);U.fill(0);V.fill(0);U0.fill(0);V0.fill(0);pres.fill(0);divg.fill(0);simTime=0;}
+function wRow(j,i0,i1){for(let i=i0;i<=i1;i++)cellType[idx(i,j)]=C_WALL;}
+function wCol(i,j0,j1){for(let j=j0;j<=j1;j++)cellType[idx(i,j)]=C_WALL;}
+function hRow(j,i0,i1){for(let i=i0;i<=i1;i++)cellType[idx(i,j)]=C_HOT;}
+function cRow(j,i0,i1){for(let i=i0;i<=i1;i++)cellType[idx(i,j)]=C_COLD;}
+function hCol(i,j0,j1){for(let j=j0;j<=j1;j++)cellType[idx(i,j)]=C_HOT;}
+function cCol(i,j0,j1){for(let j=j0;j<=j1;j++)cellType[idx(i,j)]=C_COLD;}
+
+function applyDomain(lx,ly,nx,ny){
+  Lx=lx;Ly=ly;Nx=nx;Ny=ny;computeDxDy();alloc();
+  cellPx=Math.min(W,H)/Math.max(Nx,Ny);zoom=1;panX=0;panY=0;
+  updateDomainInfo();
+}
+function setBCAll(t,b,l,r){BC={top:t,bottom:b,left:l,right:r};updateBCUI();}
+
+const PRESETS={
+  room_radiator:()=>{
+    applyDomain(6,3,96,48);setBCAll('wall','wall','wall','wall');
+    clearAll();P.T_amb=20;P.T_hot=60;P.T_cold=10;P.gravity=9.81;P.beta=3.4e-3;P.visc=1.5e-5;P.diff=2.1e-5;
+    wRow(1,1,Nx);wRow(Ny,1,Nx);wCol(1,1,Ny);wCol(Nx,1,Ny);
+    hRow(Ny-1,4,22);  // radiateur bas-gauche
+    T.fill(P.T_amb);refreshSliders();
+  },
+  room_ac:()=>{
+    applyDomain(8,3,96,36);setBCAll('wall','hot','wall','wall');
+    clearAll();P.T_amb=25;P.T_hot=32;P.T_cold=16;P.gravity=9.81;
+    wRow(1,1,Nx);wCol(1,1,Ny);wCol(Nx,1,Ny);
+    cRow(1,Math.round(Nx*.6),Math.round(Nx*.85));  // clim en haut
+    T.fill(P.T_amb);refreshSliders();
+  },
+  double_vitrage:()=>{
+    applyDomain(0.3,1.5,30,60);setBCAll('wall','wall','hot','cold');
+    clearAll();P.T_hot=20;P.T_cold=-5;P.T_amb=10;P.gravity=9.81;P.visc=1.5e-5;P.diff=2.1e-5;
+    // Two glass panes (walls), air gap in between
+    const g1=Math.round(Nx*.3),g2=Math.round(Nx*.7);
+    wCol(g1,1,Ny);wCol(g2,1,Ny);
+    T.fill(P.T_amb);refreshSliders();
+  },
+  fan_ventilation:()=>{
+    applyDomain(5,3,80,48);setBCAll('wall','wall','wall','wall');
+    clearAll();P.T_amb=20;P.T_hot=70;P.fan_speed=3;P.gravity=9.81;
+    wRow(1,1,Nx);wRow(Ny,1,Nx);wCol(1,1,Ny);wCol(Nx,1,Ny);
+    hCol(2,Math.round(Ny*.2),Math.round(Ny*.8));
+    for(let j=Math.round(Ny*.4);j<=Math.round(Ny*.6);j++) cellType[idx(4,j)]=C_FAN_R;
+    T.fill(P.T_amb);refreshSliders();
+  },
+  benard:()=>{
+    // Rayleigh-Bénard : hot bottom, cold top, side walls
+    applyDomain(4,2,80,40);setBCAll('cold','hot','wall','wall');
+    clearAll();P.T_hot=40;P.T_cold=20;P.T_amb=30;P.gravity=9.81;P.beta=3.4e-3;P.visc=1.5e-5;P.diff=2.1e-5;
+    wCol(1,1,Ny);wCol(Nx,1,Ny);
+    T.fill(P.T_amb);
+    // Small perturbation to trigger instability
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++) T[idx(i,j)]=P.T_amb+(Math.random()-.5)*.5;
+    refreshSliders();
+  },
+  thermal_plume:()=>{
+    applyDomain(4,8,40,80);setBCAll('open','wall','open','open');
+    clearAll();P.T_amb=15;P.T_hot=40;P.gravity=9.81;P.beta=3.4e-3;
+    const ci=Math.round(Nx/2),hw=3;
+    hRow(Ny,ci-hw,ci+hw);
+    T.fill(P.T_amb);refreshSliders();
+  },
+  sea_breeze:()=>{
+    applyDomain(40,10,80,40);setBCAll('open','wall','open','open');
+    clearAll();P.T_amb=20;P.T_hot=32;P.T_cold=18;P.gravity=9.81;P.beta=3.4e-3;
+    // Left half = land (hot), right half = sea (cold bottom)
+    hRow(Ny,1,Math.round(Nx*.5));   // hot land
+    cRow(Ny,Math.round(Nx*.5),Nx);  // cold sea
+    T.fill(P.T_amb);
+    for(let i=1;i<=Math.round(Nx*.5);i++) for(let j=Math.round(Ny*.7);j<=Ny;j++) T[idx(i,j)]=P.T_hot;
+    for(let i=Math.round(Nx*.5);i<=Nx;i++) for(let j=Math.round(Ny*.7);j<=Ny;j++) T[idx(i,j)]=P.T_cold;
+    refreshSliders();
+  },
+  urban_heat:()=>{
+    applyDomain(50,15,80,40);setBCAll('open','wall','open','open');
+    clearAll();P.T_amb=18;P.T_hot=35;P.T_cold=18;P.gravity=9.81;
+    // City center: hot blocks
+    const c1=Math.round(Nx*.3),c2=Math.round(Nx*.7);
+    hRow(Ny,c1,c2);
+    // Buildings
+    const bh=Math.round(Ny*.3);
+    for(let bx=c1+3;bx<=c2-3;bx+=8){wCol(bx,Ny-bh,Ny);hCol(bx,Ny-bh,Ny);}
+    T.fill(P.T_amb);
+    for(let i=c1;i<=c2;i++) for(let j=Math.round(Ny*.5);j<=Ny;j++) T[idx(i,j)]=P.T_hot-5;
+    refreshSliders();
+  },
+  hot_pipe:()=>{
+    applyDomain(2,2,64,64);setBCAll('open','open','open','open');
+    clearAll();P.T_amb=20;P.T_hot=200;P.gravity=9.81;P.beta=3.4e-3;
+    const ci=Math.round(Nx/2),cj=Math.round(Ny/2),r=3;
+    for(let i=ci-r;i<=ci+r;i++) for(let j=cj-r;j<=cj+r;j++) if(Math.hypot(i-ci,j-cj)<=r) cellType[idx(i,j)]=C_HOT;
+    T.fill(P.T_amb);refreshSliders();
+  },
+  heat_exchanger:()=>{
+    applyDomain(4,1,80,20);setBCAll('wall','wall','open','open');
+    clearAll();P.T_amb=20;P.T_hot=80;P.T_cold=5;P.fan_speed=1.5;P.gravity=9.81;
+    // Two channels separated by thin wall
+    const jm=Math.round(Ny/2);
+    wRow(jm,1,Nx);
+    // Top channel: hot flow right→left
+    for(let j=1;j<jm;j++) cellType[idx(1,j)]=C_FAN_L;
+    hRow(1,1,4); // hot inlet left top
+    // Bottom channel: cold flow left→right
+    for(let j=jm+1;j<=Ny;j++) cellType[idx(Nx,j)]=C_FAN_R;
+    cRow(Ny,Nx-3,Nx); // cold inlet right bottom
+    T.fill(P.T_amb);refreshSliders();
+  },
+  cpu_cooling:()=>{
+    applyDomain(0.08,0.05,80,50);setBCAll('open','wall','wall','open');
+    clearAll();P.T_amb=25;P.T_hot=85;P.fan_speed=2;P.gravity=9.81;P.visc=1.5e-5;P.diff=2.1e-5;
+    wRow(Ny,1,Nx);
+    // CPU block (hot)
+    const ci=Math.round(Nx/2),cw=10,ch=8;
+    for(let i=ci-cw;i<=ci+cw;i++) for(let j=Ny-ch;j<=Ny;j++) cellType[idx(i,j)]=C_HOT;
+    // Fin walls
+    for(let fi=-3;fi<=3;fi++){
+      const fx=ci+fi*Math.round(cw/3);
+      wCol(fx,Ny-Math.round(Ny*.6),Ny-ch);
+    }
+    // Fan inlet from left
+    for(let j=1;j<=Ny;j++) cellType[idx(2,j)]=C_FAN_R;
+    T.fill(P.T_amb);refreshSliders();
+  },
+  chimney:()=>{
+    applyDomain(3,6,40,80);setBCAll('open','wall','wall','wall');
+    clearAll();P.T_amb=15;P.T_hot=300;P.gravity=9.81;P.beta=3.4e-3;
+    // Chimney walls (vertical channel in center)
+    const cw=Math.round(Nx*.15),ci=Math.round(Nx/2);
+    wCol(ci-cw,Math.round(Ny*.1),Math.round(Ny*.95));
+    wCol(ci+cw,Math.round(Ny*.1),Math.round(Ny*.95));
+    // Fire at base
+    for(let i=ci-cw+1;i<ci+cw;i++) for(let j=Math.round(Ny*.85);j<=Math.round(Ny*.98);j++) cellType[idx(i,j)]=C_HOT;
+    T.fill(P.T_amb);refreshSliders();
+  },
+  diff_only:()=>{
+    applyDomain(1,1,64,64);setBCAll('cold','hot','wall','wall');
+    clearAll();P.T_hot=100;P.T_cold=0;P.T_amb=50;P.gravity=0;
+    wCol(1,1,Ny);wCol(Nx,1,Ny);
+    T.fill(P.T_amb);refreshSliders();
+  },
+  lid_driven:()=>{
+    applyDomain(1,1,64,64);setBCAll('wall','wall','wall','wall');
+    clearAll();P.T_amb=20;P.T_hot=40;P.T_cold=10;P.gravity=9.81;P.fan_speed=1;
+    wRow(1,1,Nx);wRow(Ny,1,Nx);wCol(1,1,Ny);wCol(Nx,1,Ny);
+    // Moving lid: fans along top
+    for(let i=2;i<=Nx-1;i++) cellType[idx(i,1)]=C_FAN_R;
+    hRow(Ny,1,Nx);cRow(1,1,Nx);
+    T.fill(P.T_amb);refreshSliders();
+  },
+  rayleigh_benard_strong:()=>{
+    applyDomain(8,2,128,32);setBCAll('cold','hot','wall','wall');
+    clearAll();P.T_hot=80;P.T_cold=0;P.T_amb=40;P.gravity=9.81;P.beta=3.4e-3;P.visc=1e-5;P.diff=1.5e-5;
+    wCol(1,1,Ny);wCol(Nx,1,Ny);
+    T.fill(P.T_amb);
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++) T[idx(i,j)]=P.T_amb+(Math.random()-.5)*2;
+    refreshSliders();
+  },
+};
+
+document.querySelectorAll('.preset-btn').forEach(b=>b.addEventListener('click',()=>{
+  const fn=PRESETS[b.dataset.preset];if(fn)fn();
+}));
+
+// ═══════════════════════════════════════════
+// BOUNDARY CONDITION UI
+// ═══════════════════════════════════════════
+function updateBCUI(){
+  ['top','bottom','left','right'].forEach(side=>{
+    const btn=document.getElementById('bc-'+side);
+    const lbl=document.getElementById('bc-'+side+'-lbl');
+    const t=BC[side];
+    btn.className='bc-side-btn '+BC_CLASS[t];
+    lbl.textContent=BC_LABEL[t];
+  });
+}
+['top','bottom','left','right'].forEach(side=>{
+  document.getElementById('bc-'+side).addEventListener('click',()=>{
+    const cur=BC_CYCLE.indexOf(BC[side]);
+    BC[side]=BC_CYCLE[(cur+1)%BC_CYCLE.length];
+    updateBCUI();
+  });
+});
+
+// ═══════════════════════════════════════════
+// CUSTOM SCROLL-SAFE SLIDERS
+// ═══════════════════════════════════════════
+function fmt(v,f){
+  if(f==='exp')return v.toExponential(2);
+  if(f==='2f')return v.toFixed(2);
+  if(f==='1f')return v.toFixed(1);
+  if(f==='0f')return Math.round(v).toString();
+  return String(v);
+}
+function sliderVal(wrap,raw){
+  const isLog=wrap.dataset.log==='1';
+  return isLog?Math.pow(10,raw):raw;
+}
+function rawFromVal(wrap,val){
+  const isLog=wrap.dataset.log==='1';
+  return isLog?Math.log10(val):val;
+}
+function setSliderRaw(wrap,raw){
+  const mn=parseFloat(wrap.dataset.min),mx=parseFloat(wrap.dataset.max);
+  const pct=(raw-mn)/(mx-mn)*100;
+  wrap.querySelector('.slider-fill').style.width=pct+'%';
+  wrap.querySelector('.slider-thumb').style.left=pct+'%';
+  wrap.querySelector('.slider-native').value=raw;
+  // Update param and display
+  const val=sliderVal(wrap,raw);
+  const key=wrap.dataset.key;
+  P[key]=(key==='spf'||key==='iter')?Math.round(val):val;
+  document.getElementById(wrap.dataset.disp).textContent=fmt(P[key],wrap.dataset.fmt);
+}
+
+document.querySelectorAll('.slider-wrap').forEach(wrap=>{
+  const mn=parseFloat(wrap.dataset.min),mx=parseFloat(wrap.dataset.max),st=parseFloat(wrap.dataset.step);
+  // Init from native input value
+  setSliderRaw(wrap,parseFloat(wrap.querySelector('.slider-native').value));
+
+  let dragging=false,startX=0,startRaw=0;
+
+  function getRaw(){return parseFloat(wrap.querySelector('.slider-native').value);}
+  function clamp(v){return Math.max(mn,Math.min(mx,Math.round(v/st)*st));}
+
+  function startDrag(clientX){
+    dragging=true;startX=clientX;startRaw=getRaw();
+    wrap.querySelector('.slider-thumb').classList.add('active');
+  }
+  function moveDrag(clientX){
+    if(!dragging)return;
+    const rect=wrap.getBoundingClientRect();
+    const newRaw=clamp(mn+(clientX-rect.left)/rect.width*(mx-mn));
+    setSliderRaw(wrap,newRaw);
+  }
+  function endDrag(){dragging=false;wrap.querySelector('.slider-thumb').classList.remove('active');}
+
+  // MOUSE events (desktop)
+  wrap.addEventListener('mousedown',e=>{e.preventDefault();startDrag(e.clientX);});
+  window.addEventListener('mousemove',e=>{if(dragging)moveDrag(e.clientX);});
+  window.addEventListener('mouseup',endDrag);
+
+  // TOUCH events — distinguish horizontal drag (slider) from vertical (scroll)
+  let touchStartX=0,touchStartY=0,isHorizontal=null;
+  wrap.addEventListener('touchstart',e=>{
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
+    isHorizontal=null;
+    startRaw=getRaw();
+  },{passive:true});
+  wrap.addEventListener('touchmove',e=>{
+    const dx=Math.abs(e.touches[0].clientX-touchStartX);
+    const dy=Math.abs(e.touches[0].clientY-touchStartY);
+    if(isHorizontal===null){
+      if(dx+dy>8) isHorizontal=dx>dy;
+    }
+    if(isHorizontal===true){
+      e.preventDefault(); // consume: it's a slider drag
+      if(!dragging)startDrag(e.touches[0].clientX);
+      moveDrag(e.touches[0].clientX);
+    }
+    // if vertical, don't prevent → panel scrolls normally
+  },{passive:false});
+  wrap.addEventListener('touchend',()=>{endDrag();isHorizontal=null;});
+
+  // Native input sync (keyboard / accessibility)
+  wrap.querySelector('.slider-native').addEventListener('input',e=>{
+    setSliderRaw(wrap,parseFloat(e.target.value));
+  });
+});
+
+function refreshSliders(){
+  document.querySelectorAll('.slider-wrap').forEach(wrap=>{
+    const key=wrap.dataset.key;if(!key)return;
+    const raw=rawFromVal(wrap,P[key]);
+    setSliderRaw(wrap,raw);
+  });
+}
+
+// ═══════════════════════════════════════════
+// PAINTING
+// ═══════════════════════════════════════════
+let currentTool='hot',brushSize=1;
+function screenToGrid(sx,sy){const{gw,gh,ox,oy}=getGeo();return[Math.floor((sx-ox)/gw*Nx)+1,Math.floor((sy-oy)/gh*Ny)+1];}
+function gridToPhys(gi,gj){return[(gi-.5)*dx,(Ny-gj+.5)*dy];}
+const T2C={wall:C_WALL,hot:C_HOT,cold:C_COLD,fan_right:C_FAN_R,fan_left:C_FAN_L,fan_up:C_FAN_U,fan_down:C_FAN_D,erase:C_FLUID};
+function paintAt(sx,sy){
+  const[gi,gj]=screenToGrid(sx,sy);const r=Math.floor(brushSize/2);const ct=T2C[currentTool]??C_FLUID;
+  for(let di=-r;di<=r;di++) for(let dj=-r;dj<=r;dj++){
+    const ii=gi+di,jj=gj+dj;if(ii<1||ii>Nx||jj<1||jj>Ny)continue;
+    cellType[idx(ii,jj)]=ct;
+    if(ct===C_HOT)T[idx(ii,jj)]=P.T_hot;
+    else if(ct===C_COLD)T[idx(ii,jj)]=P.T_cold;
+    else if(ct===C_FLUID){U[idx(ii,jj)]=0;V[idx(ii,jj)]=0;}
+  }
+}
+
+// ═══════════════════════════════════════════
+// POINTER EVENTS (canvas painting + zoom/pan)
+// ═══════════════════════════════════════════
+let ptrs={},isPaint=false,isPan=false,panSX,panSY,panSPX,panSPY,lastPinch=null;
+function getPos(e){const r=wrap.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top];}
+
+wrap.addEventListener('pointerdown',e=>{
+  ptrs[e.pointerId]=e;
+  if(Object.keys(ptrs).length===1){isPaint=true;const[x,y]=getPos(e);paintAt(x,y);}
+  else{isPaint=false;lastPinch=null;}
+  e.preventDefault();
+},{passive:false});
+wrap.addEventListener('pointermove',e=>{
+  ptrs[e.pointerId]=e;const pv=Object.values(ptrs);
+  if(pv.length===1&&isPaint){const[x,y]=getPos(e);paintAt(x,y);}
+  else if(pv.length===2){
+    isPaint=false;const p1=pv[0],p2=pv[1];
+    const cx=(p1.clientX+p2.clientX)/2,cy=(p1.clientY+p2.clientY)/2;
+    const dist=Math.hypot(p2.clientX-p1.clientX,p2.clientY-p1.clientY);
+    const r=wrap.getBoundingClientRect(),mx=cx-r.left,my=cy-r.top;
+    if(lastPinch){
+      const dz=dist/lastPinch.dist,oz=zoom;
+      zoom=Math.max(.25,Math.min(24,zoom*dz));
+      panX=mx-(mx-panX)*(zoom/oz)+(cx-lastPinch.cx);
+      panY=my-(my-panY)*(zoom/oz)+(cy-lastPinch.cy);
+      document.getElementById('hud-zoom').textContent=zoom.toFixed(2)+'×';
+    }
+    lastPinch={dist,cx,cy};
+  }
+  const[sx,sy]=getPos(e);const[gi,gj]=screenToGrid(sx,sy);
+  const tip=document.getElementById('tooltip');const hc=document.getElementById('hud-cursor');
+  if(gi>=1&&gi<=Nx&&gj>=1&&gj<=Ny){
+    const[px,py]=gridToPhys(gi,gj);const t=T[idx(gi,gj)];const u=U[idx(gi,gj)],v=V[idx(gi,gj)],sp=Math.hypot(u,v);
+    const ctN=['fluide','mur','chaud','froid','ventil→','ventil←','ventil↑','ventil↓'];
+    tip.style.display='block';tip.style.left=sx+14+'px';tip.style.top=sy+14+'px';
+    tip.innerHTML=`<b>[${gi},${gj}]</b> — ${ctN[cellType[idx(gi,gj)]]}<br>x=${fmtM(px)}m | y=${fmtM(py)}m<br>T=<b>${t.toFixed(2)}°C</b> | u=${u.toFixed(3)} v=${v.toFixed(3)} m/s<br>|v|=${sp.toFixed(4)} m/s`;
+    hc.innerHTML=`x=<span>${fmtM(px)}m</span> y=<span>${fmtM(py)}m</span>`;
+  } else {tip.style.display='none';hc.innerHTML='';}
+  e.preventDefault();
+},{passive:false});
+wrap.addEventListener('pointerup',e=>{delete ptrs[e.pointerId];if(!Object.keys(ptrs).length){isPaint=false;lastPinch=null;}});
+wrap.addEventListener('pointercancel',e=>{delete ptrs[e.pointerId];isPaint=false;});
+wrap.addEventListener('wheel',e=>{
+  e.preventDefault();const r=wrap.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  const dz=e.deltaY<0?1.15:.87,oz=zoom;zoom=Math.max(.25,Math.min(24,zoom*dz));
+  panX=mx-(mx-panX)*(zoom/oz);panY=my-(my-panY)*(zoom/oz);
+  document.getElementById('hud-zoom').textContent=zoom.toFixed(2)+'×';
+},{passive:false});
+wrap.addEventListener('contextmenu',e=>e.preventDefault());
+wrap.addEventListener('mousedown',e=>{if(e.button===1||e.button===2){isPaint=false;isPan=true;panSX=e.clientX;panSY=e.clientY;panSPX=panX;panSPY=panY;}});
+wrap.addEventListener('mousemove',e=>{if(isPan&&(e.buttons&6)){panX=panSPX+(e.clientX-panSX);panY=panSPY+(e.clientY-panSY);}});
+wrap.addEventListener('mouseup',e=>{if(e.button===1||e.button===2)isPan=false;});
+
+// ═══════════════════════════════════════════
+// UI CONTROLS
+// ═══════════════════════════════════════════
+document.querySelectorAll('.tool-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tool-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');currentTool=b.dataset.tool;
+}));
+document.querySelectorAll('.brush-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.brush-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');brushSize=parseInt(b.dataset.brush);
+}));
+document.querySelectorAll('.viz-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.viz-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');vizMode=b.dataset.viz;
+}));
+document.getElementById('btn-play').addEventListener('click',()=>{
+  running=!running;document.getElementById('btn-play').textContent=running?'⏸ Pause':'▶ Run';
+  document.getElementById('btn-play').classList.toggle('active',running);
+});
+document.getElementById('btn-step').addEventListener('click',()=>{step(dt_cur);simTime+=dt_cur;});
+document.getElementById('btn-reset-fields').addEventListener('click',()=>{T.fill(P.T_amb);U.fill(0);V.fill(0);pres.fill(0);simTime=0;});
+document.getElementById('btn-clear').addEventListener('click',clearAll);
+
+// DOMAIN MODAL
+function openModal(){
+  document.getElementById('m-lx').value=Lx;document.getElementById('m-ly').value=Ly;
+  document.getElementById('m-nx').value=Nx;document.getElementById('m-ny').value=Ny;
+  updModal();document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+function updModal(){
+  const lx=parseFloat(document.getElementById('m-lx').value)||1;
+  const ly=parseFloat(document.getElementById('m-ly').value)||1;
+  const nx=parseInt(document.getElementById('m-nx').value)||32;
+  const ny=parseInt(document.getElementById('m-ny').value)||32;
+  const ddx=lx/nx,ddy=ly/ny;
+  document.getElementById('modal-derived').innerHTML=
+    `dx=${fmtM(ddx)} m | dy=${fmtM(ddy)} m | ratio=${( ddx/ddy).toFixed(3)}<br>`+
+    `Cellules: ${(nx*ny).toLocaleString()} | Mémoire ≈ ${(nx*ny*8*4/1024/1024).toFixed(1)} MB<br>`+
+    `dt estimé (CFL=0.5, v=${P.fan_speed} m/s) ≈ ${(0.5*Math.min(ddx,ddy)/Math.max(P.fan_speed,.01)).toExponential(2)} s`;
+}
+['m-lx','m-ly','m-nx','m-ny'].forEach(id=>document.getElementById(id).addEventListener('input',updModal));
+['btn-domain-top','btn-domain-panel'].forEach(id=>document.getElementById(id).addEventListener('click',openModal));
+document.getElementById('m-cancel').addEventListener('click',closeModal);
+document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('modal-overlay'))closeModal();});
+document.getElementById('m-apply').addEventListener('click',()=>{
+  const lx=parseFloat(document.getElementById('m-lx').value);
+  const ly=parseFloat(document.getElementById('m-ly').value);
+  const nx=parseInt(document.getElementById('m-nx').value);
+  const ny=parseInt(document.getElementById('m-ny').value);
+  if(!lx||lx<=0||!ly||ly<=0||!nx||nx<8||!ny||ny<8){alert('Valeurs invalides.');return;}
+  applyDomain(lx,ly,nx,ny);clearAll();closeModal();
+});
+
+function updateDomainInfo(){
+  document.getElementById('info-lx').textContent=Lx.toFixed(3);
+  document.getElementById('info-ly').textContent=Ly.toFixed(3);
+  document.getElementById('info-nx').textContent=Nx;
+  document.getElementById('info-ny').textContent=Ny;
+  document.getElementById('info-dx').textContent=fmtM(dx);
+  document.getElementById('info-dy').textContent=fmtM(dy);
+}
+
+// Panel toggle
+let panelOpen=true;
+document.getElementById('panel-toggle').addEventListener('click',()=>{
+  panelOpen=!panelOpen;document.getElementById('panel').classList.toggle('collapsed',!panelOpen);
+});
+
+// ─── INIT ──────────────────────────────────
+updateDomainInfo();updateBCUI();
+PRESETS.room_radiator();
+
+// PWA
+const ml=document.createElement('link');ml.rel='manifest';
+ml.href=URL.createObjectURL(new Blob([JSON.stringify({name:"ThermoSim",short_name:"ThermoSim",start_url:".",display:"standalone",background_color:"#070710",theme_color:"#0a0a0f",icons:[]})],{type:'application/json'}));
+document.head.appendChild(ml);
+</script>
+</body>
+</html>
