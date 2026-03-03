@@ -524,8 +524,19 @@ let P={
 };
 let simTime=0,dt_cur=0.01;
 
+// BUG FIX: fan_speed must NOT influence dt when no fan cells exist.
+// Without this, editing the fan slider on a purely thermal simulation
+// (no fans drawn) incorrectly changes the timestep.
+function hasFanCells(){
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    const c=cellType[idx(i,j)];
+    if(c===C_FAN_R||c===C_FAN_L||c===C_FAN_U||c===C_FAN_D) return true;
+  }
+  return false;
+}
 function computeDt(vmax){
-  const v=Math.max(vmax,P.fan_speed,0.01);
+  const fanRef=hasFanCells()?P.fan_speed:0; // only use fan_speed when fans exist
+  const v=Math.max(vmax,fanRef,0.01);
   return Math.max(1e-6, P.cfl*Math.min(dx,dy)/v*P.sim_speed);
 }
 
