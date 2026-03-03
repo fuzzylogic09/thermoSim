@@ -199,6 +199,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   <button class="top-btn" id="btn-reset-fields">↺ Champs</button>
   <button class="top-btn danger" id="btn-clear">✕ Effacer</button>
   <button class="top-btn" id="btn-domain-top">⚙ Domaine</button>
+  <button class="top-btn" id="btn-save">💾 Sauvegarder</button>
+  <button class="top-btn" id="btn-load" style="position:relative;overflow:hidden;">📂 Charger<input type="file" id="file-input" accept=".json" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"></button>
 </div>
 <div id="simbar">
   <div class="si"><span class="sl">t =</span><span class="sv" id="st-simtime">0.00 s</span></div>
@@ -597,29 +599,85 @@ function applyInternalBC(){
 
 function applyAllBC(){applyBoundaryConditions();applyInternalBC();}
 
-function linSolve(x,x0,ax,ay,iters){
+// Effective neighbor value for diffusion stencil:
+// if a neighbor is a WALL cell, we use the current cell's own value (zero-flux / Neumann)
+// → the wall is thermally transparent: no heat flows through it, no cold is generated
+function nbr(x,ii,jj,selfVal){
+  return cellType[idx(ii,jj)]===C_WALL ? selfVal : x[idx(ii,jj)];
+}
+
+function linSolve(x,x0,ax,ay,iters,isTemp){
   const c=1+2*ax+2*ay,cR=1/c;
   for(let k=0;k<iters;k++){
     for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
-      if(cellType[idx(i,j)]===C_WALL){x[idx(i,j)]=0;continue;}
-      x[idx(i,j)]=(x0[idx(i,j)]+ax*(x[idx(i+1,j)]+x[idx(i-1,j)])+ay*(x[idx(i,j+1)]+x[idx(i,j-1)]))*cR;
+      const ct=cellType[idx(i,j)];
+      if(ct===C_WALL){
+        // Velocity walls → 0 always
+        // Temperature walls → adiabatic: mirror average of fluid neighbours
+        if(isTemp){
+          // Count fluid neighbours and average their temperature
+          let sum=0,cnt=0;
+          const ns=[[i+1,j],[i-1,j],[i,j+1],[i,j-1]];
+          for(const[ni,nj] of ns){
+            if(ni>=1&&ni<=Nx&&nj>=1&&nj<=Ny&&cellType[idx(ni,nj)]!==C_WALL){sum+=x[idx(ni,nj)];cnt++;}
+          }
+          // If the wall has at least one fluid neighbour, take their average; else keep current value
+          if(cnt>0) x[idx(i,j)]=sum/cnt;
+          // (if fully surrounded by walls, value stays as-is — irrelevant)
+        } else {
+          x[idx(i,j)]=0;
+        }
+        continue;
+      }
+      // For temperature: use zero-flux condition at wall faces (Neumann)
+      if(isTemp){
+        const self=x[idx(i,j)];
+        x[idx(i,j)]=(x0[idx(i,j)]+ax*(nbr(x,i+1,j,self)+nbr(x,i-1,j,self))+ay*(nbr(x,i,j+1,self)+nbr(x,i,j-1,self)))*cR;
+      } else {
+        x[idx(i,j)]=(x0[idx(i,j)]+ax*(x[idx(i+1,j)]+x[idx(i-1,j)])+ay*(x[idx(i,j+1)]+x[idx(i,j-1)]))*cR;
+      }
     }
     applyBoundaryConditions();
   }
 }
-function diffuse(x,x0,coeff,dt){
+function diffuse(x,x0,coeff,dt,isTemp=false){
   const ax=dt*coeff/(dx*dx),ay=dt*coeff/(dy*dy);
-  linSolve(x,x0,ax,ay,P.iter);
+  linSolve(x,x0,ax,ay,P.iter,isTemp);
 }
-function advect(d,d0,u,v,dt){
+// Sample d0 at (x,y) for advection, replacing wall-cell values with
+// the nearest non-wall value to avoid walls bleeding cold/hot into the flow.
+function sampleField(d0,x,y){
+  x=Math.max(.5,Math.min(Nx+.5,x));y=Math.max(.5,Math.min(Ny+.5,y));
+  const i0=Math.floor(x),i1=Math.min(i0+1,Nx+1);
+  const j0=Math.floor(y),j1=Math.min(j0+1,Ny+1);
+  const s1=x-i0,s0=1-s1,t1=y-j0,t0=1-t1;
+  // For each corner: if it's a wall, substitute with the opposite corner's value
+  // Simple approach: replace wall values with a weighted average of non-wall corners
+  const corners=[[i0,j0,s0*t0],[i0,j1,s0*t1],[i1,j0,s1*t0],[i1,j1,s1*t1]];
+  let sum=0,wsum=0;
+  for(const[ci,cj,w] of corners){
+    const isWall=ci>=1&&ci<=Nx&&cj>=1&&cj<=Ny&&cellType[idx(ci,cj)]===C_WALL;
+    if(!isWall){sum+=d0[idx(ci,cj)]*w;wsum+=w;}
+  }
+  if(wsum<1e-9){
+    // All corners are walls — just return current value (caller skips walls anyway)
+    return d0[idx(Math.round(x),Math.round(y))];
+  }
+  return sum/wsum;
+}
+function advect(d,d0,u,v,dt,isTemp=false){
   const dtx=dt/dx,dty=dt/dy;
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
     if(cellType[idx(i,j)]===C_WALL) continue;
-    let x=i-dtx*u[idx(i,j)],y=j-dty*v[idx(i,j)];
-    x=Math.max(.5,Math.min(Nx+.5,x));y=Math.max(.5,Math.min(Ny+.5,y));
-    const i0=Math.floor(x),i1=i0+1,j0=Math.floor(y),j1=j0+1;
-    const s1=x-i0,s0=1-s1,t1=y-j0,t0=1-t1;
-    d[idx(i,j)]=s0*(t0*d0[idx(i0,j0)]+t1*d0[idx(i0,j1)])+s1*(t0*d0[idx(i1,j0)]+t1*d0[idx(i1,j1)]);
+    const bx=i-dtx*u[idx(i,j)],by=j-dty*v[idx(i,j)];
+    if(isTemp){
+      d[idx(i,j)]=sampleField(d0,bx,by);
+    } else {
+      const x=Math.max(.5,Math.min(Nx+.5,bx)),y=Math.max(.5,Math.min(Ny+.5,by));
+      const i0=Math.floor(x),i1=i0+1,j0=Math.floor(y),j1=j0+1;
+      const s1=x-i0,s0=1-s1,t1=y-j0,t0=1-t1;
+      d[idx(i,j)]=s0*(t0*d0[idx(i0,j0)]+t1*d0[idx(i0,j1)])+s1*(t0*d0[idx(i1,j0)]+t1*d0[idx(i1,j1)]);
+    }
   }
   applyBoundaryConditions();
 }
@@ -659,8 +717,8 @@ function step(dt){
   advect(U,U0,U0,V0,dt);advect(V,V0,U0,V0,dt);
   project(U,V,pres,divg);
   applyAllBC();
-  T0.set(T);diffuse(T,T0,P.diff,dt);
-  T0.set(T);advect(T,T0,U,V,dt);
+  T0.set(T);diffuse(T,T0,P.diff,dt,true);
+  T0.set(T);advect(T,T0,U,V,dt,true);
   applyAllBC();
 }
 
@@ -1121,6 +1179,7 @@ function paintAt(sx,sy){
     cellType[idx(ii,jj)]=ct;
     if(ct===C_HOT)T[idx(ii,jj)]=P.T_hot;
     else if(ct===C_COLD)T[idx(ii,jj)]=P.T_cold;
+    else if(ct===C_WALL){U[idx(ii,jj)]=0;V[idx(ii,jj)]=0;T[idx(ii,jj)]=T[idx(ii,jj)]||P.T_amb;}
     else if(ct===C_FLUID){U[idx(ii,jj)]=0;V[idx(ii,jj)]=0;}
   }
 }
@@ -1245,6 +1304,199 @@ function updateDomainInfo(){
 let panelOpen=true;
 document.getElementById('panel-toggle').addEventListener('click',()=>{
   panelOpen=!panelOpen;document.getElementById('panel').classList.toggle('collapsed',!panelOpen);
+});
+
+
+// ═══════════════════════════════════════════
+// SAVE / LOAD (JSON — geometry + params only, no field data)
+// ═══════════════════════════════════════════
+
+// Version tag for forward compatibility
+const SAVE_VERSION = 2;
+
+// Encode cellType grid as a compact run-length encoded string
+// Format: "type:count,type:count,..."  (row-major i=1..Nx, j=1..Ny)
+function encodeCells(){
+  const runs=[];
+  let cur=cellType[idx(1,1)], cnt=1;
+  for(let i=1;i<=Nx;i++) for(let j=(i===1?2:1);j<=Ny;j++){
+    const v=cellType[idx(i,j)];
+    if(v===cur){ cnt++; } else { runs.push(cur+':'+cnt); cur=v; cnt=1; }
+  }
+  runs.push(cur+':'+cnt);
+  return runs.join(',');
+}
+
+function decodeCells(str){
+  let pos=1; // start at idx(1,1) linear position in row-major i,j
+  // We iterate i=1..Nx, j=1..Ny
+  const pairs=str.split(',');
+  const cells=[];
+  for(const p of pairs){
+    const [t,n]=p.split(':');
+    for(let k=0;k<parseInt(n);k++) cells.push(parseInt(t));
+  }
+  let ci=0;
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    cellType[idx(i,j)]=cells[ci++]??C_FLUID;
+  }
+}
+
+function buildSaveObject(){
+  return {
+    version: SAVE_VERSION,
+    meta: {
+      name: "ThermoSim simulation",
+      date: new Date().toISOString(),
+      description: "Paramètres de simulation ThermoSim 2D"
+    },
+    domain: {
+      Lx, Ly, Nx, Ny,
+      dx, dy,
+      description: "Domaine physique en mètres, maillage en cellules"
+    },
+    boundary_conditions: {
+      top:    BC.top,
+      bottom: BC.bottom,
+      left:   BC.left,
+      right:  BC.right,
+      types_available: ["wall","open","hot","cold","sym"],
+      description: "Conditions aux limites par bord du domaine"
+    },
+    physics: {
+      visc:       P.visc,       // Viscosité cinématique [m²/s]
+      diff:       P.diff,       // Diffusivité thermique [m²/s]
+      beta:       P.beta,       // Coefficient de dilatation thermique [K⁻¹]
+      gravity:    P.gravity,    // Accélération gravitationnelle [m/s²]
+      T_amb:      P.T_amb,      // Température ambiante [°C]
+      T_hot:      P.T_hot,      // Température source chaude [°C]
+      T_cold:     P.T_cold,     // Température source froide [°C]
+      fan_speed:  P.fan_speed,  // Vitesse des ventilateurs [m/s]
+      description: "Paramètres physiques en unités SI"
+    },
+    numerics: {
+      cfl:        P.cfl,        // Nombre de CFL cible
+      spf:        P.spf,        // Steps physiques par frame d'affichage
+      iter:       P.iter,       // Itérations du solveur Gauss-Seidel
+      sim_speed:  P.sim_speed,  // Facteur d'accélération temporelle
+      description: "Paramètres numériques du solveur"
+    },
+    geometry: {
+      encoding: "RLE",
+      cell_types: {
+        0: "FLUID",
+        1: "WALL (adiabatique)",
+        2: "HOT (source chaude)",
+        3: "COLD (source froide)",
+        4: "FAN_RIGHT",
+        5: "FAN_LEFT",
+        6: "FAN_UP",
+        7: "FAN_DOWN"
+      },
+      data: encodeCells(),
+      description: "Grille de cellules encodée en Run-Length Encoding (RLE), ordre row-major i=1..Nx, j=1..Ny"
+    }
+  };
+}
+
+function saveSimulation(){
+  const obj = buildSaveObject();
+  const json = JSON.stringify(obj, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  const ts = d.toISOString().slice(0,19).replace(/[T:]/g,'-');
+  a.href = url;
+  a.download = `thermosim_${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function loadSimulation(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const obj = JSON.parse(e.target.result);
+      applyLoadedSimulation(obj);
+    } catch(err) {
+      alert('Erreur de lecture du fichier JSON :\n'+err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function applyLoadedSimulation(obj){
+  // Validate version
+  if(!obj.version || obj.version > SAVE_VERSION){
+    if(!confirm('Version de fichier inconnue (v'+obj.version+'). Tenter quand même le chargement ?')) return;
+  }
+
+  // 1. Domain
+  const d=obj.domain;
+  Lx=d.Lx; Ly=d.Ly; Nx=d.Nx; Ny=d.Ny;
+  computeDxDy();
+  alloc();
+  cellPx=Math.min(W,H)/Math.max(Nx,Ny);
+  zoom=1; panX=0; panY=0;
+
+  // 2. Physics
+  const ph=obj.physics;
+  P.visc      = ph.visc;
+  P.diff      = ph.diff;
+  P.beta      = ph.beta;
+  P.gravity   = ph.gravity;
+  P.T_amb     = ph.T_amb;
+  P.T_hot     = ph.T_hot;
+  P.T_cold    = ph.T_cold;
+  P.fan_speed = ph.fan_speed;
+
+  // 3. Numerics
+  const n=obj.numerics;
+  P.cfl       = n.cfl;
+  P.spf       = n.spf;
+  P.iter      = n.iter;
+  P.sim_speed = n.sim_speed;
+
+  // 4. Boundary conditions
+  const bc=obj.boundary_conditions;
+  BC.top    = bc.top;
+  BC.bottom = bc.bottom;
+  BC.left   = bc.left;
+  BC.right  = bc.right;
+
+  // 5. Initialize fields to T_amb (no results stored)
+  T.fill(P.T_amb); T0.fill(P.T_amb);
+  U.fill(0); V.fill(0); U0.fill(0); V0.fill(0);
+  pres.fill(0); divg.fill(0);
+  simTime = 0;
+
+  // 6. Geometry (cellType grid)
+  if(obj.geometry && obj.geometry.data){
+    decodeCells(obj.geometry.data);
+    // Initialize wall T to T_amb, hot/cold to their temperatures
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+      const ct=cellType[idx(i,j)];
+      if(ct===C_HOT)       T[idx(i,j)]=P.T_hot;
+      else if(ct===C_COLD) T[idx(i,j)]=P.T_cold;
+      else                 T[idx(i,j)]=P.T_amb;
+    }
+  }
+
+  // 7. Update all UI
+  updateDomainInfo();
+  updateBCUI();
+  refreshSliders();
+
+  console.log('Simulation chargée :', obj.meta?.name, '—', obj.meta?.date);
+}
+
+document.getElementById('btn-save').addEventListener('click', saveSimulation);
+document.getElementById('file-input').addEventListener('change', e => {
+  if(e.target.files.length > 0){
+    loadSimulation(e.target.files[0]);
+    e.target.value = ''; // reset so same file can be reloaded
+  }
 });
 
 // ─── INIT ──────────────────────────────────
