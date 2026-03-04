@@ -187,6 +187,58 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   #panel-toggle{display:flex;}
   :root{--panel-w:226px;}
 }
+
+/* ── PROBE SYSTEM ─────────────────────────────────────────────────── */
+.tool-btn[data-tool="probe"].active{border-color:#f0e040;background:rgba(240,224,64,.1);color:#f0e040;}
+.tool-btn[data-tool="probe_move"].active{border-color:#f0e040;background:rgba(240,224,64,.07);color:#f0e040;}
+
+/* Probe graph panel — docked below the canvas */
+#graph-panel{
+  position:absolute;bottom:0;left:0;right:0;
+  height:180px;
+  background:rgba(7,7,16,.93);
+  border-top:1px solid var(--border2);
+  display:none;flex-direction:column;
+  z-index:12;
+  backdrop-filter:blur(6px);
+  transition:height .2s;
+}
+#graph-panel.open{display:flex;}
+#graph-header{
+  display:flex;align-items:center;gap:8px;
+  padding:4px 10px;border-bottom:1px solid var(--border);
+  font-size:9px;color:var(--text-dim);flex-shrink:0;
+}
+#graph-header b{color:var(--accent);font-size:10px;}
+#graph-legend{display:flex;gap:8px;flex-wrap:wrap;flex:1;align-items:center;}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:9px;cursor:pointer;}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.legend-item .del-probe{
+  color:var(--text-dim);font-size:9px;cursor:pointer;margin-left:2px;
+  opacity:.5;transition:opacity .15s;
+}
+.legend-item:hover .del-probe{opacity:1;color:var(--red);}
+#graph-controls{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+.graph-btn{
+  padding:2px 7px;border-radius:4px;border:1px solid var(--border);
+  background:transparent;color:var(--text-dim);cursor:pointer;
+  font-family:inherit;font-size:8px;transition:all .15s;
+}
+.graph-btn:hover{border-color:var(--accent);color:var(--accent);}
+#graph-canvas-wrap{flex:1;position:relative;overflow:hidden;min-height:0;}
+#graph-canvas{width:100%;height:100%;display:block;}
+
+/* Graph resize handle */
+#graph-resize{
+  position:absolute;top:0;left:0;right:0;height:5px;
+  cursor:ns-resize;z-index:13;
+  background:transparent;
+}
+#graph-resize:hover{background:rgba(79,195,247,.15);}
+
+/* Probe markers on simulation canvas */
+.probe-marker-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;}
+
 </style>
 </head>
 <body>
@@ -267,9 +319,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       <button class="tool-btn" data-tool="fan_down"><span class="ic">💨</span>Ventil. ↓</button>
       <button class="tool-btn" data-tool="fan_left"><span class="ic">💨</span>Ventil. ←</button>
       <button class="tool-btn" data-tool="erase"><span class="ic">🗑️</span>Effacer</button>
+      <button class="tool-btn" data-tool="probe"><span class="ic">📍</span>Sonde T(t)</button>
+      <button class="tool-btn" data-tool="probe_move"><span class="ic">✋</span>Déplacer sonde</button>
     </div>
     <div style="font-size:8px;color:var(--text-dim);margin-top:5px;line-height:1.5;">
-      🧱 Mur = obstacle solide adiabatique (bloque le flux, neutre thermiquement)
+      🧱 Mur = obstacle solide adiabatique (bloque le flux, neutre thermiquement)<br>
+      📍 Clic = place sonde | ✋ Clic+drag = déplace sonde
     </div>
   </div>
 
@@ -455,7 +510,25 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     <div class="hud-pill" id="hud-cursor" style="min-width:110px;text-align:right;"></div>
   </div>
   <div id="tooltip"></div>
+  <svg class="probe-marker-svg" id="probe-svg"></svg>
 </div>
+
+<!-- PROBE TEMPERATURE GRAPH PANEL -->
+<div id="graph-panel">
+  <div id="graph-resize"></div>
+  <div id="graph-header">
+    <b>📊 Sondes T(t)</b>
+    <div id="graph-legend"></div>
+    <div id="graph-controls">
+      <button class="graph-btn" id="btn-graph-clear-data">↺ Effacer données</button>
+      <button class="graph-btn" id="btn-graph-close">✕</button>
+    </div>
+  </div>
+  <div id="graph-canvas-wrap">
+    <canvas id="graph-canvas"></canvas>
+  </div>
+</div>
+
 </div>
 </div>
 
@@ -867,8 +940,11 @@ function loop(ts){
     gatherStats();dt_cur=computeDt(stats.vMax);
     const dtC=Math.min(dt_cur,5);
     for(let s=0;s<P.spf;s++){step(dtC);simTime+=dtC;}
+    sampleProbes();
   } else {gatherStats();}
-  render();updateHUD();
+  render();
+  if(probes.length>0){ renderProbeMarkers(); drawGraph(); }
+  updateHUD();
 }
 function updateHUD(){
   const{tMin,tMax,vMax,vAvg}=stats;
@@ -897,7 +973,7 @@ requestAnimationFrame(loop);
 // ═══════════════════════════════════════════
 // PRESET LIBRARY
 // ═══════════════════════════════════════════
-function clearAll(){cellType.fill(C_FLUID);T.fill(P.T_amb);T0.fill(P.T_amb);U.fill(0);V.fill(0);U0.fill(0);V0.fill(0);pres.fill(0);divg.fill(0);simTime=0;}
+function clearAll(){cellType.fill(C_FLUID);T.fill(P.T_amb);T0.fill(P.T_amb);U.fill(0);V.fill(0);U0.fill(0);V0.fill(0);pres.fill(0);divg.fill(0);simTime=0;clearProbeData();}
 function wRow(j,i0,i1){for(let i=i0;i<=i1;i++)cellType[idx(i,j)]=C_WALL;}
 function wCol(i,j0,j1){for(let j=j0;j<=j1;j++)cellType[idx(i,j)]=C_WALL;}
 function hRow(j,i0,i1){for(let i=i0;i<=i1;i++)cellType[idx(i,j)]=C_HOT;}
@@ -1184,6 +1260,18 @@ function screenToGrid(sx,sy){const{gw,gh,ox,oy}=getGeo();return[Math.floor((sx-o
 function gridToPhys(gi,gj){return[(gi-.5)*dx,(Ny-gj+.5)*dy];}
 const T2C={wall:C_WALL,hot:C_HOT,cold:C_COLD,fan_right:C_FAN_R,fan_left:C_FAN_L,fan_up:C_FAN_U,fan_down:C_FAN_D,erase:C_FLUID};
 function paintAt(sx,sy){
+  // Probe tool: place a probe at click location (don't modify cell types)
+  if(currentTool==='probe'){
+    const[gi,gj]=screenToGrid(sx,sy);
+    if(gi>=1&&gi<=Nx&&gj>=1&&gj<=Ny){
+      // Physical coords (center of cell)
+      const px=(gi-.5)*dx;
+      const py=Ly-(gj-.5)*dy;
+      addProbe(px,py);
+    }
+    return;
+  }
+  if(currentTool==='probe_move') return; // handled by SVG drag
   const[gi,gj]=screenToGrid(sx,sy);const r=Math.floor(brushSize/2);const ct=T2C[currentTool]??C_FLUID;
   for(let di=-r;di<=r;di++) for(let dj=-r;dj<=r;dj++){
     const ii=gi+di,jj=gj+dj;if(ii<1||ii>Nx||jj<1||jj>Ny)continue;
@@ -1254,6 +1342,10 @@ wrap.addEventListener('mouseup',e=>{if(e.button===1||e.button===2)isPan=false;})
 document.querySelectorAll('.tool-btn').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('.tool-btn').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');currentTool=b.dataset.tool;
+  // Update cursor and SVG pointer-events for probe tools
+  const probeMode = (currentTool==='probe'||currentTool==='probe_move');
+  canvas.style.cursor = currentTool==='probe'?'crosshair':currentTool==='probe_move'?'default':'crosshair';
+  renderProbeMarkers();
 }));
 document.querySelectorAll('.brush-btn').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('.brush-btn').forEach(x=>x.classList.remove('active'));
@@ -1317,6 +1409,300 @@ document.getElementById('panel-toggle').addEventListener('click',()=>{
   panelOpen=!panelOpen;document.getElementById('panel').classList.toggle('collapsed',!panelOpen);
 });
 
+
+
+// ═══════════════════════════════════════════════════════════════════
+// PROBE SYSTEM — Temperature vs time measurements
+// ═══════════════════════════════════════════════════════════════════
+
+// Each probe: { id, x, y, label, color, data: [{t, T}] }
+// x, y are in PHYSICAL coordinates [m]
+let probes = [];
+let probeIdCounter = 0;
+const MAX_PROBE_SAMPLES = 4000;  // max history points per probe
+const PROBE_SAMPLE_INTERVAL = 0.05; // seconds (sim time) between samples — adaptive
+let lastProbeSampleTime = -Infinity;
+
+// Colour palette for probes (cycles)
+const PROBE_COLORS = [
+  '#f0e040','#ff6b6b','#4ecdc4','#a78bfa','#fb923c',
+  '#34d399','#f472b6','#60a5fa','#fbbf24','#86efac',
+];
+function nextProbeColor(){ return PROBE_COLORS[probes.length % PROBE_COLORS.length]; }
+
+function addProbe(physX, physY){
+  const id = ++probeIdCounter;
+  const label = 'S' + id;
+  probes.push({ id, x: physX, y: physY, label, color: nextProbeColor(), data: [] });
+  rebuildProbeLegend();
+  openGraphPanel();
+  renderProbeMarkers();
+}
+
+function deleteProbe(id){
+  probes = probes.filter(p => p.id !== id);
+  rebuildProbeLegend();
+  renderProbeMarkers();
+  if(probes.length === 0) closeGraphPanel();
+}
+
+function clearProbeData(){
+  probes.forEach(p => p.data = []);
+  lastProbeSampleTime = -Infinity;
+}
+
+// Convert physical coords to grid indices
+function physToGrid(px, py){
+  const i = Math.max(1, Math.min(Nx, Math.floor(px/dx) + 1));
+  const j = Math.max(1, Math.min(Ny, Math.floor((Ly-py)/dy) + 1));
+  return [i, j];
+}
+
+// Sample all probes at current simTime
+function sampleProbes(){
+  if(simTime - lastProbeSampleTime < PROBE_SAMPLE_INTERVAL) return;
+  lastProbeSampleTime = simTime;
+  for(const p of probes){
+    const [i, j] = physToGrid(p.x, p.y);
+    const temp = T[idx(i, j)];
+    p.data.push({ t: simTime, T: temp });
+    if(p.data.length > MAX_PROBE_SAMPLES) p.data.shift();
+  }
+}
+
+// ── PROBE MARKERS (SVG overlay on simulation canvas) ─────────────────
+let dragProbe = null, dragOffX = 0, dragOffY = 0;
+
+function renderProbeMarkers(){
+  const svg = document.getElementById('probe-svg');
+  const { gw, gh, ox, oy } = getGeo();
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+
+  // Remove old markers
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+  for(const p of probes){
+    // Physical → screen
+    const sx = ox + (p.x / Lx) * gw;
+    const sy = oy + ((Ly - p.y) / Ly) * gh;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('data-id', p.id);
+    g.style.cursor = (currentTool === 'probe_move') ? 'grab' : 'default';
+    g.style.pointerEvents = (currentTool === 'probe_move') ? 'all' : 'none';
+
+    // Outer ring (hit area)
+    const ring = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ring.setAttribute('cx', sx); ring.setAttribute('cy', sy); ring.setAttribute('r', 11);
+    ring.setAttribute('fill','transparent');
+    g.appendChild(ring);
+
+    // Pin body
+    const body = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    body.setAttribute('cx', sx); body.setAttribute('cy', sy-2); body.setAttribute('r', 7);
+    body.setAttribute('fill', p.color); body.setAttribute('stroke','#fff');
+    body.setAttribute('stroke-width','1.5');
+    g.appendChild(body);
+
+    // Pin needle
+    const needle = document.createElementNS('http://www.w3.org/2000/svg','line');
+    needle.setAttribute('x1', sx); needle.setAttribute('y1', sy+5);
+    needle.setAttribute('x2', sx); needle.setAttribute('y2', sy+1);
+    needle.setAttribute('stroke', p.color); needle.setAttribute('stroke-width','2');
+    g.appendChild(needle);
+
+    // Label
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x', sx); lbl.setAttribute('y', sy+1);
+    lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('dominant-baseline','middle');
+    lbl.setAttribute('fill','#000'); lbl.setAttribute('font-size','7');
+    lbl.setAttribute('font-family','JetBrains Mono,monospace'); lbl.setAttribute('font-weight','600');
+    lbl.textContent = p.label;
+    g.appendChild(lbl);
+
+    // Live temperature readout (small pill above marker)
+    const [pi, pj] = physToGrid(p.x, p.y);
+    const curT = T[idx(pi, pj)];
+    const pill = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const pillBg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    const pillTxt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    const pillStr = curT.toFixed(1) + '°C';
+    pillBg.setAttribute('x', sx-18); pillBg.setAttribute('y', sy-24);
+    pillBg.setAttribute('width', 36); pillBg.setAttribute('height', 13);
+    pillBg.setAttribute('rx', 4); pillBg.setAttribute('fill','rgba(7,7,16,.85)');
+    pillBg.setAttribute('stroke', p.color); pillBg.setAttribute('stroke-width','1');
+    pillTxt.setAttribute('x', sx); pillTxt.setAttribute('y', sy-14);
+    pillTxt.setAttribute('text-anchor','middle'); pillTxt.setAttribute('dominant-baseline','middle');
+    pillTxt.setAttribute('fill', p.color); pillTxt.setAttribute('font-size','8');
+    pillTxt.setAttribute('font-family','JetBrains Mono,monospace'); pillTxt.setAttribute('font-weight','600');
+    pillTxt.textContent = pillStr;
+    pill.appendChild(pillBg); pill.appendChild(pillTxt);
+    g.appendChild(pill);
+
+    svg.appendChild(g);
+
+    // Drag events (probe_move tool)
+    g.addEventListener('pointerdown', e => {
+      if(currentTool !== 'probe_move') return;
+      e.stopPropagation();
+      dragProbe = p;
+      g.style.cursor = 'grabbing';
+      g.setPointerCapture(e.pointerId);
+    });
+    g.addEventListener('pointermove', e => {
+      if(dragProbe !== p) return;
+      e.stopPropagation();
+      const rect = wrap.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const geo = getGeo();
+      // Screen → physical
+      const nx = Math.max(0, Math.min(Lx, (mx - geo.ox) / geo.gw * Lx));
+      const ny = Math.max(0, Math.min(Ly, Ly - (my - geo.oy) / geo.gh * Ly));
+      p.x = nx; p.y = ny;
+      renderProbeMarkers();
+    });
+    g.addEventListener('pointerup', e => {
+      if(dragProbe !== p) return;
+      dragProbe = null;
+      g.style.cursor = 'grab';
+    });
+  }
+}
+
+// ── GRAPH PANEL ───────────────────────────────────────────────────────
+const graphPanel = document.getElementById('graph-panel');
+const graphCanvas = document.getElementById('graph-canvas');
+const graphCtx = graphCanvas.getContext('2d');
+let graphH = 180;
+
+function openGraphPanel(){
+  graphPanel.classList.add('open');
+  graphPanel.style.height = graphH + 'px';
+}
+function closeGraphPanel(){
+  graphPanel.classList.remove('open');
+}
+
+// Legend
+function rebuildProbeLegend(){
+  const leg = document.getElementById('graph-legend');
+  leg.innerHTML = '';
+  for(const p of probes){
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-dot" style="background:${p.color}"></span>`
+      + `<span style="color:${p.color}">${p.label}</span>`
+      + `<span class="del-probe" data-id="${p.id}" title="Supprimer">✕</span>`;
+    item.querySelector('.del-probe').addEventListener('click', e => {
+      deleteProbe(parseInt(e.target.dataset.id));
+    });
+    leg.appendChild(item);
+  }
+}
+
+// Draw the temperature graph
+function drawGraph(){
+  const cw = graphCanvas.parentElement.clientWidth;
+  const ch = graphCanvas.parentElement.clientHeight;
+  if(graphCanvas.width !== cw || graphCanvas.height !== ch){
+    graphCanvas.width = cw; graphCanvas.height = ch;
+  }
+  const W = cw, H = ch;
+  const PAD = { top:8, right:14, bottom:28, left:46 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top  - PAD.bottom;
+
+  graphCtx.fillStyle = 'rgba(4,4,20,1)';
+  graphCtx.fillRect(0,0,W,H);
+
+  if(probes.length === 0 || probes.every(p => p.data.length < 2)) {
+    graphCtx.fillStyle = 'rgba(96,96,160,.5)';
+    graphCtx.font = '10px JetBrains Mono';
+    graphCtx.textAlign = 'center';
+    graphCtx.fillText('Aucune donnée — placez des sondes (📍) sur la simulation', W/2, H/2);
+    return;
+  }
+
+  // Gather time and temperature ranges
+  let tMin=Infinity, tMax=-Infinity, TMin=Infinity, TMax=-Infinity;
+  for(const p of probes) for(const d of p.data){
+    if(d.t < tMin) tMin=d.t; if(d.t > tMax) tMax=d.t;
+    if(d.T < TMin) TMin=d.T; if(d.T > TMax) TMax=d.T;
+  }
+  if(tMax === tMin) tMax = tMin + 1;
+  const dT = TMax - TMin; 
+  const TMargin = dT < 0.1 ? 0.5 : dT * 0.07;
+  TMin -= TMargin; TMax += TMargin;
+  if(TMax === TMin) TMax = TMin + 1;
+
+  function tx(t){ return PAD.left + (t-tMin)/(tMax-tMin)*plotW; }
+  function ty(T){ return PAD.top  + (1-(T-TMin)/(TMax-TMin))*plotH; }
+
+  // Grid lines
+  graphCtx.strokeStyle = 'rgba(30,30,58,1)'; graphCtx.lineWidth = 0.5;
+  const tStep = niceStep(tMax-tMin, 6);
+  const TStep = niceStep(TMax-TMin, 4);
+  graphCtx.font = '8px JetBrains Mono'; graphCtx.fillStyle = 'rgba(96,96,160,.8)';
+
+  for(let t=Math.ceil(tMin/tStep)*tStep; t<=tMax+1e-9; t+=tStep){
+    const x = tx(t); graphCtx.beginPath(); graphCtx.moveTo(x,PAD.top); graphCtx.lineTo(x,PAD.top+plotH); graphCtx.stroke();
+    graphCtx.textAlign='center'; graphCtx.fillText(fmtTime(t), x, H-6);
+  }
+  for(let T=Math.ceil(TMin/TStep)*TStep; T<=TMax+1e-9; T+=TStep){
+    const y = ty(T); graphCtx.beginPath(); graphCtx.moveTo(PAD.left,y); graphCtx.lineTo(PAD.left+plotW,y); graphCtx.stroke();
+    graphCtx.textAlign='right'; graphCtx.fillText(T.toFixed(1)+'°', PAD.left-3, y+3);
+  }
+
+  // Axes
+  graphCtx.strokeStyle = 'rgba(79,195,247,.3)'; graphCtx.lineWidth = 1;
+  graphCtx.strokeRect(PAD.left, PAD.top, plotW, plotH);
+
+  // Axis labels
+  graphCtx.fillStyle = 'rgba(144,144,192,.7)'; graphCtx.font = '8px JetBrains Mono';
+  graphCtx.textAlign = 'right'; graphCtx.save();
+  graphCtx.translate(10, PAD.top + plotH/2); graphCtx.rotate(-Math.PI/2);
+  graphCtx.textAlign='center'; graphCtx.fillText('T (°C)', 0, 0); graphCtx.restore();
+
+  // Plot each probe's data
+  for(const p of probes){
+    if(p.data.length < 2) continue;
+    graphCtx.strokeStyle = p.color; graphCtx.lineWidth = 1.5;
+    graphCtx.lineJoin = 'round'; graphCtx.lineCap = 'round';
+    graphCtx.beginPath();
+    let first = true;
+    for(const d of p.data){
+      const x = tx(d.t), y = ty(d.T);
+      if(first){ graphCtx.moveTo(x,y); first=false; } else { graphCtx.lineTo(x,y); }
+    }
+    graphCtx.stroke();
+
+    // Latest value dot
+    const last = p.data[p.data.length-1];
+    graphCtx.fillStyle = p.color;
+    graphCtx.beginPath(); graphCtx.arc(tx(last.t), ty(last.T), 3, 0, Math.PI*2); graphCtx.fill();
+  }
+}
+
+// Resize graph panel by dragging its top edge
+(function(){
+  const handle = document.getElementById('graph-resize');
+  let dragging = false, startY = 0, startH = 180;
+  handle.addEventListener('pointerdown', e => {
+    dragging = true; startY = e.clientY; startH = graphH;
+    handle.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  handle.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    graphH = Math.max(120, Math.min(500, startH - (e.clientY - startY)));
+    graphPanel.style.height = graphH + 'px';
+  });
+  handle.addEventListener('pointerup', () => { dragging = false; });
+})();
+
+document.getElementById('btn-graph-close').addEventListener('click', closeGraphPanel);
+document.getElementById('btn-graph-clear-data').addEventListener('click', () => {
+  clearProbeData();
+});
 
 // ═══════════════════════════════════════════
 // SAVE / LOAD (JSON — geometry + params only, no field data)
@@ -1392,6 +1778,13 @@ function buildSaveObject(){
       sim_speed:  P.sim_speed,  // Facteur d'accélération temporelle
       description: "Paramètres numériques du solveur"
     },
+    probes: probes.map(p=>({
+      id:    p.id,
+      label: p.label,
+      color: p.color,
+      x:     p.x,
+      y:     p.y
+    })),
     geometry: {
       encoding: "RLE",
       cell_types: {
@@ -1494,7 +1887,21 @@ function applyLoadedSimulation(obj){
     }
   }
 
-  // 7. Update all UI
+  // 7. Load probes (positions only — data not stored)
+  probes = [];
+  probeIdCounter = 0;
+  if(obj.probes && Array.isArray(obj.probes)){
+    for(const p of obj.probes){
+      probeIdCounter = Math.max(probeIdCounter, p.id);
+      probes.push({ id:p.id, label:p.label, color:p.color, x:p.x, y:p.y, data:[] });
+    }
+  }
+  rebuildProbeLegend();
+  renderProbeMarkers();
+  clearProbeData();
+  if(probes.length > 0) openGraphPanel();
+
+  // 8. Update all UI
   updateDomainInfo();
   updateBCUI();
   refreshSliders();
