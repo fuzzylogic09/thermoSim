@@ -1,0 +1,10 @@
+[
+  { "file": "00_benard_cells.json",          "label": "🌪️ Cellules de Bénard (RB classique)" },
+  { "file": "01_chimney.json",               "label": "🏠 Effet cheminée (tirage thermique)" },
+  { "file": "02_room_radiator.json",         "label": "🔥 Pièce avec radiateur" },
+  { "file": "03_hot_pipe.json",              "label": "🔵 Tuyau chaud en milieu libre" },
+  { "file": "04_cpu_cooling.json",           "label": "💻 Refroidissement CPU + ventilateur" },
+  { "file": "05_diffusion_pure.json",        "label": "🌡️ Diffusion pure (loi de Fourier)" },
+  { "file": "06_rayleigh_benard_intense.json","label": "🌊 Rayleigh-Bénard intense (turbulent)" },
+  { "file": "07_lid_driven.json",            "label": "🔄 Cavité entraînée (lid-driven)" }
+]
