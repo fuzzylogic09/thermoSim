@@ -1,0 +1,31 @@
+{
+  "version": 3,
+  "meta": {
+    "name": "Pièce avec radiateur",
+    "date": "2025-01-01T00:00:00.000Z",
+    "description": "Convection naturelle dans une pièce fermée. Un radiateur bas-gauche chauffe l'air qui monte et circule. Illustre le chauffage par convection."
+  },
+  "domain": { "Lx": 6, "Ly": 3, "Nx": 96, "Ny": 48 },
+  "boundary_conditions": { "top": "wall", "bottom": "wall", "left": "wall", "right": "wall" },
+  "physics": {
+    "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3,
+    "gravity": 9.81, "T_amb": 20, "T_hot": 60, "T_cold": 10, "fan_speed": 2.0
+  },
+  "numerics": { "cfl": 0.5, "spf": 2, "iter": 20, "sim_speed": 1.0 },
+  "geometry_objects": [
+    { "id": 1, "name": "Mur haut",   "type": "wall", "shape": "hline",
+      "x0": 0, "y0": 2.95, "x1": 6, "y1": 3, "radius": null, "visible": true, "props": {} },
+    { "id": 2, "name": "Mur bas",    "type": "wall", "shape": "hline",
+      "x0": 0, "y0": 0,    "x1": 6, "y1": 0.05, "radius": null, "visible": true, "props": {} },
+    { "id": 3, "name": "Mur gauche", "type": "wall", "shape": "vline",
+      "x0": 0,    "y0": 0, "x1": 0.05, "y1": 3, "radius": null, "visible": true, "props": {} },
+    { "id": 4, "name": "Mur droit",  "type": "wall", "shape": "vline",
+      "x0": 5.95, "y0": 0, "x1": 6,    "y1": 3, "radius": null, "visible": true, "props": {} },
+    { "id": 5, "name": "Radiateur",  "type": "hot",  "shape": "rect",
+      "x0": 0.2, "y0": 0.05, "x1": 1.2, "y1": 0.2, "radius": null, "visible": true, "props": { "temperature": 60 } }
+  ],
+  "probes": [
+    { "id": 1, "label": "Centre", "color": "#f0e040", "x": 3.0, "y": 1.5 },
+    { "id": 2, "label": "Haut",   "color": "#4ecdc4", "x": 3.0, "y": 2.5 }
+  ]
+}

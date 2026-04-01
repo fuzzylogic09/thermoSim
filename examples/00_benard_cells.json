@@ -1,0 +1,22 @@
+{
+  "version": 3,
+  "meta": {
+    "name": "Cellules de Bénard (Rayleigh-Bénard classique)",
+    "date": "2025-01-01T00:00:00.000Z",
+    "description": "Convection de Rayleigh-Bénard. Fond chaud, plafond froid, murs latéraux. Les cellules convectives émergent spontanément au-delà du nombre de Rayleigh critique."
+  },
+  "domain": { "Lx": 4, "Ly": 2, "Nx": 80, "Ny": 40 },
+  "boundary_conditions": { "top": "cold", "bottom": "hot", "left": "wall", "right": "wall" },
+  "physics": {
+    "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3,
+    "gravity": 9.81, "T_amb": 30, "T_hot": 40, "T_cold": 20, "fan_speed": 2.0
+  },
+  "numerics": { "cfl": 0.5, "spf": 2, "iter": 20, "sim_speed": 1.0 },
+  "geometry_objects": [
+    { "id": 1, "name": "Mur gauche", "type": "wall", "shape": "vline",
+      "x0": 0, "y0": 0, "x1": 0.05, "y1": 2, "radius": null, "visible": true, "props": {} },
+    { "id": 2, "name": "Mur droit",  "type": "wall", "shape": "vline",
+      "x0": 3.95, "y0": 0, "x1": 4, "y1": 2, "radius": null, "visible": true, "props": {} }
+  ],
+  "probes": []
+}
