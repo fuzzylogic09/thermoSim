@@ -618,3 +618,54 @@ html, body {
 
 /* Fix info-dx to show both dx and dy */
 #info-dx { font-size:10px; }
+
+/* ── PROPERTIES PANEL ── */
+#props-content { display:flex; flex-direction:column; }
+.props-row { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+.props-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:500; }
+.props-input {
+  background:var(--bg); border:1px solid var(--border2);
+  border-radius:6px; color:var(--text);
+  font-family:'DM Sans',sans-serif; font-size:12px; padding:6px 8px;
+  outline:none; width:100%; transition:border-color .15s;
+}
+.props-input:focus { border-color:var(--accent); }
+.props-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:0 8px; }
+.props-check-row {
+  display:flex; align-items:center; gap:7px;
+  font-size:11px; color:var(--text); cursor:pointer;
+  padding:4px 0;
+}
+.props-check-row input[type="checkbox"] { width:14px; height:14px; cursor:pointer; accent-color:var(--accent); }
+
+/* ── LOCK TOGGLE ── */
+.lock-toggle { display:flex; align-items:center; cursor:pointer; }
+.lock-toggle input { display:none; }
+.lock-icon { font-size:18px; transition:transform .15s; user-select:none; }
+.lock-toggle input:checked + .lock-icon { transform:scale(1.15); }
+
+/* ── THEME: HUD pills and tooltip adapt to light mode ── */
+[data-theme="light"] .hud-pill {
+  background:rgba(255,255,255,.92);
+  border-color:var(--border);
+  color:var(--muted);
+}
+[data-theme="light"] .hud-pill span { color:var(--text); }
+[data-theme="light"] #tooltip {
+  background:rgba(255,255,255,.97);
+  border-color:var(--border2);
+  color:var(--text);
+  box-shadow:0 4px 16px rgba(0,0,0,.12);
+}
+[data-theme="light"] #viz-bar {
+  background:rgba(244,245,248,.94);
+  border-color:var(--border);
+}
+[data-theme="light"] #graph-panel {
+  background:rgba(244,245,248,.96);
+  border-color:var(--border);
+}
+
+/* ── FAN ANGLE DIAL ── */
+#fan-angle-dial { border:1.5px solid var(--fan-c); }
+[data-theme="light"] #fan-angle-dial { filter:brightness(1.1); }
