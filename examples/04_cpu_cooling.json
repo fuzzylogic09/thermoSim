@@ -3,20 +3,17 @@
   "meta": { "name": "Refroidissement CPU + ventilateur", "date": "2025-01-01T00:00:00.000Z" },
   "domain": { "Lx": 0.08, "Ly": 0.05, "Nx": 80, "Ny": 50 },
   "boundary_conditions": { "top": "open", "bottom": "wall", "left": "wall", "right": "open" },
-  "physics": {
-    "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3,
-    "gravity": 9.81, "T_amb": 25, "T_hot": 85, "T_cold": 0, "fan_speed": 2.0
-  },
+  "physics": { "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3, "gravity": 9.81, "T_amb": 25 },
   "numerics": { "cfl": 0.5, "spf": 3, "iter": 20, "sim_speed": 1.0 },
   "geometry_objects": [
-    { "id": 1, "name": "CPU", "type": "hot", "shape": "rect", "x0": 0.02, "y0": 0, "x1": 0.06, "y1": 0.012, "radius": null, "visible": true, "props": { "temperature": 85 } },
-    { "id": 2, "name": "Ailette 1", "type": "wall", "shape": "rect", "x0": 0.025, "y0": 0.012, "x1": 0.028, "y1": 0.035, "radius": null, "visible": true, "props": {} },
-    { "id": 3, "name": "Ailette 2", "type": "wall", "shape": "rect", "x0": 0.038, "y0": 0.012, "x1": 0.041, "y1": 0.035, "radius": null, "visible": true, "props": {} },
-    { "id": 4, "name": "Ailette 3", "type": "wall", "shape": "rect", "x0": 0.051, "y0": 0.012, "x1": 0.054, "y1": 0.035, "radius": null, "visible": true, "props": {} },
-    { "id": 5, "name": "Ventilateur", "type": "fan_right", "shape": "vline", "x0": 0, "y0": 0, "x1": 0.002, "y1": 0.05, "radius": null, "visible": true, "props": {} }
+    { "id": 1, "name": "CPU",    "type": "source", "shape": "rect",  "x0": 0.02,  "y0": 0,     "x1": 0.06,  "y1": 0.012, "radius": null, "visible": true, "locked": false, "props": { "temperature": 85 } },
+    { "id": 2, "name": "Ail. 1","type": "wall",   "shape": "rect",  "x0": 0.025, "y0": 0.012, "x1": 0.028, "y1": 0.035, "radius": null, "visible": true, "locked": false, "props": {} },
+    { "id": 3, "name": "Ail. 2","type": "wall",   "shape": "rect",  "x0": 0.038, "y0": 0.012, "x1": 0.041, "y1": 0.035, "radius": null, "visible": true, "locked": false, "props": {} },
+    { "id": 4, "name": "Ail. 3","type": "wall",   "shape": "rect",  "x0": 0.051, "y0": 0.012, "x1": 0.054, "y1": 0.035, "radius": null, "visible": true, "locked": false, "props": {} },
+    { "id": 5, "name": "Ventil.","type": "fan",   "shape": "vline", "x0": 0,     "y0": 0,     "x1": 0.002, "y1": 0.05,  "radius": null, "visible": true, "locked": false, "props": { "speed": 2, "angleDeg": 0 } }
   ],
   "probes": [
-    { "id": 1, "label": "CPU", "color": "#f0e040", "x": 0.04, "y": 0.006 },
-    { "id": 2, "label": "Sortie", "color": "#4ecdc4", "x": 0.075, "y": 0.025 }
+    { "id": 1, "label": "CPU",    "color": "#f0e040", "x": 0.04, "y": 0.006 },
+    { "id": 2, "label": "Sortie", "color": "#4ecdc4", "x": 0.075,"y": 0.025 }
   ]
 }
