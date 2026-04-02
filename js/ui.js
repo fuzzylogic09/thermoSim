@@ -3,23 +3,31 @@
 // ═══════════════════════════════════════════
 'use strict';
 
-// ── TABS ──────────────────────────────────────────────────────────
+// ── ACTIVE TAB TRACKING ───────────────────────────────────────────
+let activeTab = 'domain';
+
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
-    const pane=document.getElementById('tab-'+btn.dataset.tab);
+    activeTab = btn.dataset.tab;
+    const pane=document.getElementById('tab-'+activeTab);
     if(pane) pane.classList.add('active');
+    // Update draw-mode tool selection display
+    updateDrawToolHighlight();
   });
 });
 
-// ── THEME TOGGLE ──────────────────────────────────────────────────
+// ── THEME ─────────────────────────────────────────────────────────
 (function(){
   const stored=localStorage.getItem('als-theme')||'dark';
   document.documentElement.setAttribute('data-theme',stored);
   const btn=document.getElementById('theme-toggle');
-  function updateIcon(){ btn.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀️':'🌙'; }
+  function updateIcon(){
+    const dark=document.documentElement.getAttribute('data-theme')==='dark';
+    btn.textContent=dark?'☀️':'🌙';
+  }
   updateIcon();
   btn.addEventListener('click',()=>{
     const cur=document.documentElement.getAttribute('data-theme');
@@ -27,34 +35,33 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.documentElement.setAttribute('data-theme',next);
     localStorage.setItem('als-theme',next);
     updateIcon();
+    // Re-render so canvas background adapts
+    if(typeof gatherStats==='function') gatherStats();
   });
 })();
 
 // ── SLIDERS ───────────────────────────────────────────────────────
 function fmtParam(v,f){
-  if(f==='exp')  return v.toExponential(2);
-  if(f==='2f')   return v.toFixed(2);
-  if(f==='1f')   return v.toFixed(1);
-  if(f==='0f')   return Math.round(v).toString();
+  if(f==='exp') return v.toExponential(2);
+  if(f==='2f')  return v.toFixed(2);
+  if(f==='1f')  return v.toFixed(1);
+  if(f==='0f')  return Math.round(v).toString();
   return String(v);
 }
-function sliderVal(wrap,raw){
-  return wrap.dataset.log==='1' ? Math.pow(10,raw) : parseFloat(raw);
-}
-function rawFromVal(wrap,val){
-  return wrap.dataset.log==='1' ? Math.log10(val) : val;
-}
+function sliderVal(wrap,raw){ return wrap.dataset.log==='1'?Math.pow(10,raw):parseFloat(raw); }
+function rawFromVal(wrap,val){ return wrap.dataset.log==='1'?Math.log10(val):val; }
+
 function setSliderRaw(wrap,raw){
   const mn=parseFloat(wrap.dataset.min), mx=parseFloat(wrap.dataset.max);
-  const pct=(raw-mn)/(mx-mn)*100;
+  const pct=Math.max(0,Math.min(100,(raw-mn)/(mx-mn)*100));
   wrap.querySelector('.slider-fill').style.width=pct+'%';
   wrap.querySelector('.slider-thumb').style.left=pct+'%';
   wrap.querySelector('.slider-native').value=raw;
   const val=sliderVal(wrap,raw);
   const key=wrap.dataset.key;
-  P[key]=(key==='spf'||key==='iter')?Math.round(val):val;
+  if(key) P[key]=(key==='spf'||key==='iter')?Math.round(val):val;
   const dispEl=document.getElementById(wrap.dataset.disp);
-  if(dispEl) dispEl.textContent=fmtParam(P[key],wrap.dataset.fmt);
+  if(dispEl&&key) dispEl.textContent=fmtParam(P[key],wrap.dataset.fmt);
 }
 
 document.querySelectorAll('.slider-wrap').forEach(wrap=>{
@@ -64,29 +71,29 @@ document.querySelectorAll('.slider-wrap').forEach(wrap=>{
   function getRaw(){ return parseFloat(wrap.querySelector('.slider-native').value); }
   function clamp(v){ return Math.max(mn,Math.min(mx,Math.round(v/st)*st)); }
   function startDrag(){ dragging=true; wrap.querySelector('.slider-thumb').classList.add('active'); }
-  function moveDrag(clientX){
+  function moveDrag(cx){
     if(!dragging) return;
     const rect=wrap.getBoundingClientRect();
-    setSliderRaw(wrap,clamp(mn+(clientX-rect.left)/rect.width*(mx-mn)));
+    setSliderRaw(wrap,clamp(mn+(cx-rect.left)/rect.width*(mx-mn)));
   }
   function endDrag(){ dragging=false; wrap.querySelector('.slider-thumb').classList.remove('active'); }
   wrap.addEventListener('mousedown',e=>{ e.preventDefault(); startDrag(); moveDrag(e.clientX); });
   window.addEventListener('mousemove',e=>{ if(dragging) moveDrag(e.clientX); });
   window.addEventListener('mouseup',endDrag);
-  let touchStartX=0,touchStartY=0,isHoriz=null;
-  wrap.addEventListener('touchstart',e=>{ touchStartX=e.touches[0].clientX; touchStartY=e.touches[0].clientY; isHoriz=null; },{passive:true});
+  let tsx=0,tsy=0,isH=null;
+  wrap.addEventListener('touchstart',e=>{ tsx=e.touches[0].clientX; tsy=e.touches[0].clientY; isH=null; },{passive:true});
   wrap.addEventListener('touchmove',e=>{
-    const dx=Math.abs(e.touches[0].clientX-touchStartX), dy=Math.abs(e.touches[0].clientY-touchStartY);
-    if(isHoriz===null&&dx+dy>8) isHoriz=dx>dy;
-    if(isHoriz===true){ e.preventDefault(); if(!dragging) startDrag(); moveDrag(e.touches[0].clientX); }
+    const dx=Math.abs(e.touches[0].clientX-tsx),dy=Math.abs(e.touches[0].clientY-tsy);
+    if(isH===null&&dx+dy>8) isH=dx>dy;
+    if(isH){ e.preventDefault(); if(!dragging) startDrag(); moveDrag(e.touches[0].clientX); }
   },{passive:false});
-  wrap.addEventListener('touchend',()=>{ endDrag(); isHoriz=null; });
+  wrap.addEventListener('touchend',()=>{ endDrag(); isH=null; });
   wrap.querySelector('.slider-native').addEventListener('input',e=>{ setSliderRaw(wrap,parseFloat(e.target.value)); });
 });
 
 function refreshSliders(){
   document.querySelectorAll('.slider-wrap').forEach(wrap=>{
-    const key=wrap.dataset.key; if(!key) return;
+    const key=wrap.dataset.key; if(!key||P[key]===undefined) return;
     setSliderRaw(wrap,rawFromVal(wrap,P[key]));
   });
 }
@@ -115,12 +122,11 @@ function updateDomainInfo(){
   document.getElementById('info-ly').textContent=Ly.toFixed(3);
   document.getElementById('info-nx').textContent=Nx;
   document.getElementById('info-ny').textContent=Ny;
-  document.getElementById('info-dx').textContent=fmtM(dx);
-  document.getElementById('info-dy').textContent=fmtM(dy);
+  document.getElementById('info-dx').textContent=fmtM(dx)+'×'+fmtM(dy)+' m';
+  // info-dy may not exist in new HTML
 }
 
 // ── HUD UPDATE ────────────────────────────────────────────────────
-// fmtTime() defined in renderer.js
 function updateHUD(){
   const{tMin,tMax,vMax,vAvg}=simStats;
   document.getElementById('st-simtime').textContent=fmtTime(simTime);
@@ -152,11 +158,30 @@ document.querySelectorAll('.viz-btn').forEach(b=>b.addEventListener('click',()=>
   b.classList.add('active'); vizMode=b.dataset.viz;
 }));
 
-// ── TOOL BUTTONS ──────────────────────────────────────────────────
-document.querySelectorAll('.tool-btn').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('.tool-btn').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active'); currentTool=b.dataset.tool;
-  canvas.style.cursor=currentTool==='probe_move'?'default':'crosshair';
+// ── DRAW TOOL BUTTONS ─────────────────────────────────────────────
+// currentTool='none' when no tool is selected (default)
+let currentDrawType = null; // null = no active draw type
+
+function updateDrawToolHighlight(){
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tool===currentDrawType);
+  });
+}
+
+document.querySelectorAll('.tool-btn[data-tool]').forEach(b=>b.addEventListener('click',()=>{
+  const t=b.dataset.tool;
+  if(currentDrawType===t){
+    // Click again to deselect
+    currentDrawType=null;
+  } else {
+    currentDrawType=t;
+    // Probes don't require geometry tab
+    if(t==='probe'||t==='probe_move'){
+      // stay on current tab
+    }
+  }
+  updateDrawToolHighlight();
+  canvas.style.cursor=(currentDrawType==='probe_move')?'default':'crosshair';
   renderProbeMarkers();
 }));
 
@@ -191,20 +216,20 @@ function updDomainModal(){
   const ddx=lx/nx, ddy=ly/ny;
   document.getElementById('modal-derived').innerHTML=
     `dx=${fmtM(ddx)} m | dy=${fmtM(ddy)} m | ratio=${(ddx/ddy).toFixed(3)}<br>`+
-    `Cellules: ${(nx*ny).toLocaleString()} | Mémoire ≈ ${(nx*ny*8*4/1024/1024).toFixed(1)} MB<br>`+
-    `dt estimé (CFL=0.5, v=${P.fan_speed} m/s) ≈ ${(0.5*Math.min(ddx,ddy)/Math.max(P.fan_speed,.01)).toExponential(2)} s`;
+    `Cellules: ${(nx*ny).toLocaleString()} | Mémoire ≈ ${(nx*ny*8*4/1024/1024).toFixed(1)} MB`;
 }
 ['m-lx','m-ly','m-nx','m-ny'].forEach(id=>document.getElementById(id).addEventListener('input',updDomainModal));
 ['btn-domain-top','btn-domain-panel'].forEach(id=>document.getElementById(id).addEventListener('click',openDomainModal));
 document.getElementById('m-cancel').addEventListener('click',closeDomainModal);
-document.getElementById('modal-domain').addEventListener('click',e=>{ if(e.target===document.getElementById('modal-domain')) closeDomainModal(); });
+document.getElementById('modal-domain').addEventListener('click',e=>{
+  if(e.target===document.getElementById('modal-domain')) closeDomainModal();
+});
 document.getElementById('m-apply').addEventListener('click',()=>{
   const lx=parseFloat(document.getElementById('m-lx').value);
   const ly=parseFloat(document.getElementById('m-ly').value);
   const nx=parseInt(document.getElementById('m-nx').value);
   const ny=parseInt(document.getElementById('m-ny').value);
   if(!lx||lx<=0||!ly||ly<=0||!nx||nx<8||!ny||ny<8){ alert('Valeurs invalides.'); return; }
-  // Change domain but keep geometry objects!
   applyDomain(lx,ly,nx,ny);
   cellPx=Math.min(W,H)/Math.max(Nx,Ny);
   zoom=1; panX=0; panY=0;
@@ -215,78 +240,102 @@ document.getElementById('m-apply').addEventListener('click',()=>{
 });
 
 // ── GEO OBJECT MODAL ──────────────────────────────────────────────
-let editingGeoId = null; // null = new
+let editingGeoId = null;
 
-function openGeoModal(id=null){
-  editingGeoId = id;
-  const modal=document.getElementById('modal-geo');
+function openGeoModal(id=null, prefillType=null){
+  editingGeoId=id;
   const title=document.getElementById('geo-modal-title');
   if(id===null){
-    title.textContent='➕ Nouvel objet géométrique';
-    document.getElementById('gm-name').value='Objet '+(geoIdCounter+1);
-    document.getElementById('gm-type').value='wall';
+    const t=prefillType||'wall';
+    title.textContent='➕ Nouvel objet';
+    document.getElementById('gm-name').value='';
+    document.getElementById('gm-type').value=t;
     document.getElementById('gm-shape').value='rect';
-    document.getElementById('gm-x0').value=0;
-    document.getElementById('gm-y0').value=0;
-    document.getElementById('gm-x1').value=Lx;
-    document.getElementById('gm-y1').value=Ly;
+    document.getElementById('gm-x0').value=(0).toFixed(2);
+    document.getElementById('gm-y0').value=(0).toFixed(2);
+    document.getElementById('gm-x1').value=Lx.toFixed(2);
+    document.getElementById('gm-y1').value=Ly.toFixed(2);
     document.getElementById('gm-radius').value='';
-    document.getElementById('gm-temperature').value='';
-    document.getElementById('gm-temp-row').style.display='none';
+    updateGeoModalFields(t);
   } else {
     const obj=getGeoObject(id);
     title.textContent='✎ Modifier: '+obj.name;
     document.getElementById('gm-name').value=obj.name;
     document.getElementById('gm-type').value=obj.type;
     document.getElementById('gm-shape').value=obj.shape;
-    document.getElementById('gm-x0').value=obj.x0;
-    document.getElementById('gm-y0').value=obj.y0;
-    document.getElementById('gm-x1').value=obj.x1;
-    document.getElementById('gm-y1').value=obj.y1;
-    document.getElementById('gm-radius').value=obj.radius??'';
-    document.getElementById('gm-temperature').value=obj.props.temperature??'';
-    updateGeoTempRow();
+    document.getElementById('gm-x0').value=obj.x0.toFixed(3);
+    document.getElementById('gm-y0').value=obj.y0.toFixed(3);
+    document.getElementById('gm-x1').value=obj.x1.toFixed(3);
+    document.getElementById('gm-y1').value=obj.y1.toFixed(3);
+    document.getElementById('gm-radius').value=obj.radius!=null?obj.radius:'';
+    // Restore type-specific fields
+    updateGeoModalFields(obj.type, obj.props);
   }
-  modal.classList.add('open');
+  document.getElementById('modal-geo').classList.add('open');
 }
 
-function updateGeoTempRow(){
-  const type=document.getElementById('gm-type').value;
-  const row=document.getElementById('gm-temp-row');
-  const info=GEO_TYPES[type];
-  row.style.display=(info&&info.hasTemp)?'':'none';
+function updateGeoModalFields(type, props={}){
+  // Temperature row
+  const tempRow=document.getElementById('gm-temp-row');
+  tempRow.style.display=(type==='hot'||type==='cold')?'':'none';
+  if(type==='hot'||type==='cold'){
+    const def=type==='hot'?P.T_hot:P.T_cold;
+    document.getElementById('gm-temperature').value=props.temperature??def;
+  }
+  // Fan rows
+  const fanRow=document.getElementById('gm-fan-row');
+  fanRow.style.display=(type==='fan')?'':'none';
+  if(type==='fan'){
+    document.getElementById('gm-fan-dir').value=props.direction||'right';
+    document.getElementById('gm-fan-speed').value=props.speed??2.0;
+  }
 }
-document.getElementById('gm-type').addEventListener('change',updateGeoTempRow);
+
+document.getElementById('gm-type').addEventListener('change',e=>{
+  const obj=editingGeoId?getGeoObject(editingGeoId):null;
+  updateGeoModalFields(e.target.value, obj?.props||{});
+});
 
 function closeGeoModal(){ document.getElementById('modal-geo').classList.remove('open'); }
-
 document.getElementById('modal-geo').addEventListener('click',e=>{
   if(e.target===document.getElementById('modal-geo')) closeGeoModal();
 });
 document.getElementById('gm-cancel').addEventListener('click',closeGeoModal);
 document.getElementById('gm-apply').addEventListener('click',()=>{
-  const name=document.getElementById('gm-name').value||'Objet';
   const type=document.getElementById('gm-type').value;
   const shape=document.getElementById('gm-shape').value;
+  const rawName=document.getElementById('gm-name').value.trim();
   const x0=parseFloat(document.getElementById('gm-x0').value)||0;
   const y0=parseFloat(document.getElementById('gm-y0').value)||0;
   const x1=parseFloat(document.getElementById('gm-x1').value)||1;
   const y1=parseFloat(document.getElementById('gm-y1').value)||1;
   const rVal=document.getElementById('gm-radius').value;
   const radius=rVal===''?null:parseFloat(rVal);
-  const tempVal=document.getElementById('gm-temperature').value;
+
+  // Build props
   const props={};
-  if(tempVal!=='') props.temperature=parseFloat(tempVal);
+  if(type==='hot'||type==='cold'){
+    const tv=document.getElementById('gm-temperature').value;
+    if(tv!=='') props.temperature=parseFloat(tv);
+  }
+  if(type==='fan'){
+    props.direction=document.getElementById('gm-fan-dir').value;
+    props.speed=parseFloat(document.getElementById('gm-fan-speed').value)||2;
+  }
+
+  const name=rawName||(typeLabel(type)+' '+(geoIdCounter+1));
+  const x0f=Math.min(x0,x1), x1f=Math.max(x0,x1);
+  const y0f=Math.min(y0,y1), y1f=Math.max(y0,y1);
 
   if(editingGeoId===null){
-    addGeoObject({ name, type, shape, x0:Math.min(x0,x1), y0:Math.min(y0,y1), x1:Math.max(x0,x1), y1:Math.max(y0,y1), radius, props });
+    addGeoObject({ name, type, shape, x0:x0f, y0:y0f, x1:x1f, y1:y1f, radius, props });
   } else {
     const obj=getGeoObject(editingGeoId);
     if(obj){
       obj.name=name; obj.type=type; obj.shape=shape;
-      obj.x0=Math.min(x0,x1); obj.y0=Math.min(y0,y1);
-      obj.x1=Math.max(x0,x1); obj.y1=Math.max(y0,y1);
-      obj.radius=radius; obj.props=props;
+      obj.x0=x0f; obj.y0=y0f; obj.x1=x1f; obj.y1=y1f;
+      obj.radius=radius;
+      obj.props={...defaultProps(type),...props};
     }
   }
   rebuildFromGeo();
@@ -301,21 +350,30 @@ function refreshGeoList(){
   const list=document.getElementById('geo-list');
   list.innerHTML='';
   if(geoObjects.length===0){
-    list.innerHTML='<div class="geo-empty"><span class="geo-empty-icon">📐</span>Aucun objet défini.<br>Créez ou dessinez des objets géométriques.<br>Ils seront indépendants du maillage.</div>';
+    list.innerHTML='<div class="geo-empty"><span class="geo-empty-icon">📐</span>'
+      +'Aucun objet.<br>Sélectionnez un type dans l\'onglet <b>Dessiner</b><br>'
+      +'puis dessinez sur le canvas.</div>';
     return;
   }
   geoObjects.forEach((obj,i)=>{
     const item=document.createElement('div');
     item.className='geo-item'+(obj.id===selectedGeoId?' selected':'');
     item.style.animationDelay=(i*.04)+'s';
-    const info=GEO_TYPES[obj.type];
     const shapeLabel=GEO_SHAPES[obj.shape]||obj.shape;
-    const coordLabel=`${obj.x0.toFixed(2)},${obj.y0.toFixed(2)} → ${obj.x1.toFixed(2)},${obj.y1.toFixed(2)} m`;
+
+    // Build sub-label with per-object params
+    let subParts=[typeLabel(obj.type), shapeLabel];
+    if(obj.type==='hot'||obj.type==='cold')
+      subParts.push((obj.props.temperature??'—')+'°C');
+    if(obj.type==='fan')
+      subParts.push(FAN_DIRS[obj.props.direction||'right'], (obj.props.speed??2)+' m/s');
+    subParts.push(`${obj.x0.toFixed(2)},${obj.y0.toFixed(2)}→${obj.x1.toFixed(2)},${obj.y1.toFixed(2)}m`);
+
     item.innerHTML=`
       <div class="geo-item-type-dot" style="background:${typeColor(obj.type)}"></div>
       <div class="geo-item-info">
         <div class="geo-item-name">${typeIcon(obj.type)} ${obj.name}</div>
-        <div class="geo-item-sub">${typeLabel(obj.type)} · ${shapeLabel} · ${coordLabel}</div>
+        <div class="geo-item-sub">${subParts.join(' · ')}</div>
       </div>
       <div class="geo-item-actions">
         <button class="geo-action-btn" title="Éditer" data-id="${obj.id}" data-action="edit">✎</button>
@@ -328,22 +386,21 @@ function refreshGeoList(){
         const id=parseInt(btn.dataset.id);
         if(btn.dataset.action==='edit'){ openGeoModal(id); return; }
         if(btn.dataset.action==='del'){
-          if(confirm('Supprimer cet objet ?')){ removeGeoObject(id); rebuildFromGeo(); refreshGeoList(); } return;
+          removeGeoObject(id); rebuildFromGeo(); refreshGeoList(); return;
         }
         if(btn.dataset.action==='dup'){
           const src=getGeoObject(id);
-          addGeoObject({...src, name:src.name+' (copie)', id:undefined, props:{...src.props}});
+          addGeoObject({...src,name:src.name+' (copie)',id:undefined,props:{...src.props}});
           rebuildFromGeo(); refreshGeoList(); return;
         }
       }
-      selectedGeoId=obj.id;
+      selectedGeoId=(selectedGeoId===obj.id)?null:obj.id;
       refreshGeoList();
     });
     list.appendChild(item);
   });
 }
 
-document.getElementById('btn-geo-add').addEventListener('click',()=>openGeoModal(null));
 document.getElementById('btn-geo-clear').addEventListener('click',()=>{
   if(geoObjects.length===0||confirm('Effacer tous les objets ?')){
     clearGeoObjects(); rebuildFromGeo(); refreshGeoList();
