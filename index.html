@@ -11,7 +11,6 @@
 <body>
 <div id="app">
 
-<!-- ═══ TOP BAR ═══ -->
 <div id="topbar">
   <div class="logo-mark">TS</div>
   <h1>Thermo<span>Sim</span></h1>
@@ -19,20 +18,19 @@
   <button class="top-btn active" id="btn-play">⏸ Pause</button>
   <button class="top-btn" id="btn-step">▷ Pas</button>
   <button class="top-btn" id="btn-reset-fields">↺ Reset</button>
-  <button class="top-btn danger" id="btn-clear">✕ Tout</button>
+  <button class="top-btn danger" id="btn-clear">✕</button>
   <button class="top-btn" id="btn-domain-top">⚙ Domaine</button>
   <div class="examples-wrap">
     <select id="examples-select"><option value="">— Exemples —</option></select>
   </div>
-  <button class="top-btn" id="btn-save">💾</button>
-  <button class="top-btn" style="position:relative;overflow:hidden;">
-    📂 <input type="file" id="file-input" accept=".json"
+  <button class="top-btn" id="btn-save" title="Sauvegarder JSON">💾</button>
+  <button class="top-btn" style="position:relative;overflow:hidden;" title="Charger JSON">
+    📂<input type="file" id="file-input" accept=".json"
       style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;">
   </button>
-  <button id="theme-toggle" title="Thème">🌙</button>
+  <button id="theme-toggle" title="Thème clair/sombre">🌙</button>
 </div>
 
-<!-- ═══ SIM STATUS BAR ═══ -->
 <div id="simbar">
   <div class="si"><span class="sl">t=</span><span class="sv" id="st-simtime">0.00 s</span></div>
   <div class="si"><span class="sl">dt=</span><span class="sv" id="st-dt">—</span></div>
@@ -46,20 +44,18 @@
   <div class="si"><span class="sl">Pr=</span><span class="sv" id="st-pr">—</span></div>
 </div>
 
-<!-- ═══ MAIN ═══ -->
 <div id="main">
-
-<!-- ─── LEFT PANEL ─── -->
 <div id="panel">
   <div id="tab-nav">
     <button class="tab-btn active" data-tab="domain">📐<br>Domaine</button>
     <button class="tab-btn" data-tab="geometry">📦<br>Géom.</button>
+    <button class="tab-btn" data-tab="props">🔧<br>Propriétés</button>
     <button class="tab-btn" data-tab="draw">✏️<br>Dessiner</button>
     <button class="tab-btn" data-tab="physics">⚗️<br>Physique</button>
     <button class="tab-btn" data-tab="results">📊<br>Résultats</button>
   </div>
 
-  <!-- ─── TAB: DOMAIN ─── -->
+  <!-- DOMAIN TAB -->
   <div class="tab-pane active" id="tab-domain">
     <div class="section">
       <div class="section-title">Domaine physique</div>
@@ -69,21 +65,26 @@
         <div class="info-row"><span class="info-label">Grille</span><span class="info-value"><span id="info-nx">—</span>×<span id="info-ny">—</span></span></div>
         <div class="info-row"><span class="info-label">dx×dy</span><span class="info-value" id="info-dx">—</span></div>
       </div>
-      <button class="apply-btn" id="btn-domain-panel">✎ Modifier le domaine…</button>
-      <div class="info-note">✅ Géométrie indépendante du maillage. Changez Nx×Ny sans retoucher vos objets.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+        <button class="apply-btn" id="btn-domain-panel" style="flex:1;margin:0;">✎ Modifier domaine…</button>
+        <label class="lock-toggle" title="Verrouiller tous les objets">
+          <input type="checkbox" id="lock-all-toggle">
+          <span class="lock-icon">🔓</span>
+        </label>
+      </div>
+      <div class="info-note" style="margin-top:8px;">✅ Géométrie indépendante du maillage.</div>
     </div>
-
     <div class="section">
       <div class="section-title">Conditions aux limites</div>
       <div class="bc-diagram">
         <div></div>
-        <button class="bc-side-btn" id="bc-top" data-side="top">⬆ Haut<br><span id="bc-top-lbl">Mur</span></button>
+        <button class="bc-side-btn" id="bc-top"><span class="bc-arrow">⬆</span> Haut<br><span id="bc-top-lbl">Mur</span></button>
         <div></div>
-        <button class="bc-side-btn" id="bc-left" data-side="left" style="width:38px;font-size:7px;">⬅ G.<br><span id="bc-left-lbl">Mur</span></button>
+        <button class="bc-side-btn" id="bc-left" style="width:38px;font-size:7px;"><span class="bc-arrow">⬅</span> G.<br><span id="bc-left-lbl">Mur</span></button>
         <div class="bc-center">domaine</div>
-        <button class="bc-side-btn" id="bc-right" data-side="right" style="width:38px;font-size:7px;">D. ➡<br><span id="bc-right-lbl">Mur</span></button>
+        <button class="bc-side-btn" id="bc-right" style="width:38px;font-size:7px;">D. <span class="bc-arrow">➡</span><br><span id="bc-right-lbl">Mur</span></button>
         <div></div>
-        <button class="bc-side-btn" id="bc-bottom" data-side="bottom">⬇ Bas<br><span id="bc-bottom-lbl">Mur</span></button>
+        <button class="bc-side-btn" id="bc-bottom"><span class="bc-arrow">⬇</span> Bas<br><span id="bc-bottom-lbl">Mur</span></button>
         <div></div>
       </div>
       <div class="bc-legend">
@@ -92,49 +93,106 @@
         <span class="bc-chip" style="border:1px solid var(--fan-c);color:#c4b5fd;background:rgba(167,139,250,.05)">Symétrie</span>
       </div>
     </div>
-  </div><!-- end tab-domain -->
+  </div>
 
-  <!-- ─── TAB: GEOMETRY ─── -->
+  <!-- GEOMETRY TAB -->
   <div class="tab-pane" id="tab-geometry">
     <div class="section" style="flex-shrink:0;">
       <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
-        Objets géométriques
+        <span>Objets (<span id="geo-count">0</span>)</span>
         <button class="geo-toolbar-btn" id="btn-geo-clear" style="color:var(--red);border-color:var(--red);padding:2px 8px;font-size:9px;">✕ Tout effacer</button>
       </div>
-      <div class="info-note" style="margin-top:6px;">
-        💡 <b>Onglet Dessiner</b> → sélectionnez un type → glissez sur le canvas.<br>
-        🖱️ Ici, glissez un objet pour le repositionner.
-      </div>
+      <div class="info-note">💡 <b>Onglet Dessiner</b> → type → glisser sur canvas.<br>Cliquez un objet pour voir ses propriétés.<br>🖱️ Glissez un objet (non verrouillé) pour le repositionner.</div>
     </div>
-    <div class="section" style="flex:1;overflow-y:auto;padding:8px 10px;">
+    <div style="flex:1;overflow-y:auto;padding:6px 8px;" id="geo-list-wrap">
       <div id="geo-list">
-        <div class="geo-empty"><span class="geo-empty-icon">📐</span>Aucun objet.<br>Allez dans <b>Dessiner</b> et tracez.</div>
+        <div class="geo-empty"><span class="geo-empty-icon">📐</span>Aucun objet.<br>Allez dans <b>Dessiner</b>.</div>
       </div>
     </div>
-  </div><!-- end tab-geometry -->
+  </div>
 
-  <!-- ─── TAB: DRAW ─── -->
+  <!-- PROPERTIES TAB -->
+  <div class="tab-pane" id="tab-props">
+    <div id="props-empty" style="padding:20px 12px;text-align:center;color:var(--muted);font-size:11px;">
+      <div style="font-size:28px;margin-bottom:8px;">🔧</div>
+      Sélectionnez un objet dans l'onglet <b>Géom.</b> pour voir ses propriétés.
+    </div>
+    <div id="props-content" style="display:none;flex-direction:column;">
+      <div class="section">
+        <div class="section-title" id="props-type-label">Propriétés</div>
+        <div class="props-row">
+          <label class="props-label">Nom</label>
+          <input class="props-input" type="text" id="prop-name">
+        </div>
+        <div class="props-row" id="prop-temp-row" style="display:none;">
+          <label class="props-label">Température (°C)</label>
+          <input class="props-input" type="number" id="prop-temperature" step="1">
+        </div>
+        <div id="prop-fan-rows" style="display:none;">
+          <div class="props-row">
+            <label class="props-label">Vitesse (m/s)</label>
+            <input class="props-input" type="number" id="prop-fan-speed" min="0.01" step="0.1">
+          </div>
+          <div class="props-row">
+            <label class="props-label">Angle (°) <span style="color:var(--muted);font-size:9px;">0=→ 90=↑ 180=← 270=↓</span></label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input class="props-input" type="number" id="prop-fan-angle" min="0" max="359" step="1" style="flex:1;">
+              <canvas id="fan-angle-dial" width="44" height="44" style="cursor:pointer;border-radius:50%;flex-shrink:0;"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Position & taille (m)</div>
+        <div class="props-grid-2">
+          <div class="props-row"><label class="props-label">x₀ gauche</label><input class="props-input" type="number" id="prop-x0" step="0.01"></div>
+          <div class="props-row"><label class="props-label">y₀ bas</label><input class="props-input" type="number" id="prop-y0" step="0.01"></div>
+          <div class="props-row"><label class="props-label">x₁ droite</label><input class="props-input" type="number" id="prop-x1" step="0.01"></div>
+          <div class="props-row"><label class="props-label">y₁ haut</label><input class="props-input" type="number" id="prop-y1" step="0.01"></div>
+        </div>
+        <div class="props-row">
+          <label class="props-label">Rayon (cercle, m)</label>
+          <input class="props-input" type="number" id="prop-radius" step="0.01" placeholder="auto">
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Options</div>
+        <label class="props-check-row">
+          <input type="checkbox" id="prop-locked">
+          <span>🔒 Verrouiller la position</span>
+        </label>
+        <label class="props-check-row" style="margin-top:4px;">
+          <input type="checkbox" id="prop-visible" checked>
+          <span>👁 Visible</span>
+        </label>
+      </div>
+      <div class="section" style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="apply-btn" id="btn-props-apply" style="flex:1;margin:0;">✔ Appliquer</button>
+        <button class="apply-btn" id="btn-props-delete" style="flex:0 0 auto;margin:0;border-color:var(--red);color:var(--red);padding:4px 10px;background:rgba(208,112,112,.07);">🗑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAW TAB -->
   <div class="tab-pane" id="tab-draw">
     <div class="section">
       <div class="section-title">Type d'objet à dessiner</div>
-      <div class="info-note" style="margin-bottom:8px;">Sélectionnez un type, puis <b>glissez</b> sur le canvas pour créer. Sans sélection, le clic déplace la vue.</div>
+      <div class="info-note" style="margin-bottom:8px;">Sélectionnez un type, <b>glissez</b> sur le canvas. La sélection se réinitialise après chaque tracé.</div>
       <div class="tool-grid">
-        <button class="tool-btn" data-tool="hot"><span class="ic">🔥</span>Source chaude</button>
-        <button class="tool-btn" data-tool="cold"><span class="ic">❄️</span>Source froide</button>
+        <button class="tool-btn" data-tool="source"><span class="ic">🌡</span>Source therm.</button>
         <button class="tool-btn" data-tool="wall"><span class="ic">🧱</span>Mur (CFD)</button>
         <button class="tool-btn" data-tool="fan"><span class="ic">💨</span>Ventilateur</button>
         <button class="tool-btn" data-tool="erase"><span class="ic">🗑️</span>Effacer objet</button>
         <button class="tool-btn" data-tool="probe"><span class="ic">📍</span>Sonde T(t)</button>
         <button class="tool-btn" data-tool="probe_move"><span class="ic">✋</span>Dépl. sonde</button>
       </div>
-      <div style="margin-top:8px;font-size:9px;color:var(--muted);">Cliquez à nouveau sur un outil actif pour le désélectionner.</div>
     </div>
-  </div><!-- end tab-draw -->
+  </div>
 
-  <!-- ─── TAB: PHYSICS ─── -->
+  <!-- PHYSICS TAB -->
   <div class="tab-pane" id="tab-physics">
     <div class="section">
-      <div class="section-title">Paramètres physiques (SI)</div>
+      <div class="section-title">Paramètres physiques</div>
       <div class="param">
         <div class="param-label">Viscosité ν<span class="vu"><span id="v-visc">1.52e-5</span> m²/s</span></div>
         <div class="slider-wrap" data-min="-7" data-max="-2" data-step="0.05" data-log="1" data-key="visc" data-disp="v-visc" data-fmt="exp">
@@ -143,7 +201,7 @@
         </div>
       </div>
       <div class="param">
-        <div class="param-label">Diffus. α<span class="vu"><span id="v-diff">2.13e-5</span> m²/s</span></div>
+        <div class="param-label">Diffusivité α<span class="vu"><span id="v-diff">2.13e-5</span> m²/s</span></div>
         <div class="slider-wrap" data-min="-7" data-max="-2" data-step="0.05" data-log="1" data-key="diff" data-disp="v-diff" data-fmt="exp">
           <div class="slider-track"><div class="slider-fill"></div></div><div class="slider-thumb"></div>
           <input class="slider-native" type="range" min="-7" max="-2" step="0.05" value="-4.672">
@@ -202,9 +260,9 @@
         </div>
       </div>
     </div>
-  </div><!-- end tab-physics -->
+  </div>
 
-  <!-- ─── TAB: RESULTS ─── -->
+  <!-- RESULTS TAB -->
   <div class="tab-pane" id="tab-results">
     <div class="section">
       <div class="section-title">Légende température</div>
@@ -231,13 +289,13 @@
     </div>
     <div class="section">
       <div class="section-title">Sondes T(t)</div>
-      <div class="info-note">📍 Onglet <b>Dessiner</b> → Sonde : clic sur le canvas.<br>✋ Outil Dépl. sonde : glisser pour repositionner.</div>
+      <div class="info-note">📍 Onglet <b>Dessiner</b> → Sonde → clic canvas.<br>✋ Dépl. sonde → glisser.</div>
     </div>
-  </div><!-- end tab-results -->
+  </div>
 
 </div><!-- end panel -->
 
-<!-- ─── CANVAS AREA ─── -->
+<!-- CANVAS AREA -->
 <div id="canvas-wrap">
   <button id="panel-toggle">☰</button>
   <canvas id="sim-canvas"></canvas>
@@ -251,41 +309,39 @@
   </div>
   <div id="hud">
     <div class="hud-pill">zoom <span id="hud-zoom">1.00×</span></div>
-    <div class="hud-pill" id="hud-cursor" style="min-width:120px;text-align:right;"></div>
+    <div class="hud-pill" id="hud-cursor"></div>
   </div>
   <div id="tooltip"></div>
   <svg class="probe-marker-svg" id="probe-svg"></svg>
 </div>
 
-<!-- ─── PROBE GRAPH ─── -->
+<!-- PROBE GRAPH -->
 <div id="graph-panel">
   <div id="graph-resize"></div>
   <div id="graph-header">
     <b>📊 Sondes T(t)</b>
     <div id="graph-legend"></div>
     <div id="graph-controls">
-      <button class="graph-btn" id="btn-graph-clear-data">↺ Effacer</button>
+      <button class="graph-btn" id="btn-graph-clear-data">↺</button>
       <button class="graph-btn" id="btn-graph-close">✕</button>
     </div>
   </div>
   <div id="graph-canvas-wrap"><canvas id="graph-canvas"></canvas></div>
 </div>
+</div></div>
 
-</div><!-- end main -->
-</div><!-- end app -->
-
-<!-- ═══ DOMAIN MODAL ═══ -->
+<!-- DOMAIN MODAL -->
 <div id="modal-domain" class="modal-overlay">
   <div class="modal-box">
     <h2>⚙ Domaine physique</h2>
-    <div class="modal-note">La géométrie est <b>conservée</b> lors d'un changement de maillage. Les objets sont rerasterisés automatiquement.</div>
+    <div class="modal-note">La géométrie est <b>conservée</b> lors d'un changement de maillage.</div>
     <div class="modal-row">
       <div class="modal-field"><label>Lx (m)</label><input type="number" id="m-lx" value="5" min="0.001" step="0.1"></div>
       <div class="modal-field"><label>Ly (m)</label><input type="number" id="m-ly" value="5" min="0.001" step="0.1"></div>
     </div>
     <div class="modal-row">
-      <div class="modal-field"><label>Nx — cellules X</label><input type="number" id="m-nx" value="64" min="8" max="256" step="4"></div>
-      <div class="modal-field"><label>Ny — cellules Y</label><input type="number" id="m-ny" value="64" min="8" max="256" step="4"></div>
+      <div class="modal-field"><label>Nx</label><input type="number" id="m-nx" value="64" min="8" max="256" step="4"></div>
+      <div class="modal-field"><label>Ny</label><input type="number" id="m-ny" value="64" min="8" max="256" step="4"></div>
     </div>
     <div id="modal-derived"></div>
     <div class="modal-btns">
@@ -295,76 +351,6 @@
   </div>
 </div>
 
-<!-- ═══ GEO OBJECT MODAL ═══ -->
-<div id="modal-geo" class="modal-overlay">
-  <div class="modal-box">
-    <h2 id="geo-modal-title">✎ Modifier objet</h2>
-    <div class="modal-row single">
-      <div class="modal-field"><label>Nom</label><input type="text" id="gm-name" placeholder="ex: Radiateur"></div>
-    </div>
-    <div class="modal-row">
-      <div class="modal-field">
-        <label>Type</label>
-        <select id="gm-type">
-          <option value="wall">🧱 Mur (CFD) — adiabatique</option>
-          <option value="hot">🔥 Source chaude</option>
-          <option value="cold">❄️ Source froide</option>
-          <option value="fan">💨 Ventilateur</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <label>Forme</label>
-        <select id="gm-shape">
-          <option value="rect">Rectangle</option>
-          <option value="circle">Cercle</option>
-          <option value="hline">Ligne horizontale</option>
-          <option value="vline">Ligne verticale</option>
-        </select>
-      </div>
-    </div>
-    <div class="modal-section-title">Boîte englobante (mètres) — y=0 en bas</div>
-    <div class="modal-row">
-      <div class="modal-field"><label>x₀ gauche</label><input type="number" id="gm-x0" value="0" step="0.01"></div>
-      <div class="modal-field"><label>y₀ bas</label><input type="number" id="gm-y0" value="0" step="0.01"></div>
-    </div>
-    <div class="modal-row">
-      <div class="modal-field"><label>x₁ droite</label><input type="number" id="gm-x1" value="1" step="0.01"></div>
-      <div class="modal-field"><label>y₁ haut</label><input type="number" id="gm-y1" value="1" step="0.01"></div>
-    </div>
-    <div class="modal-row">
-      <div class="modal-field"><label>Rayon (cercle, m)</label><input type="number" id="gm-radius" placeholder="auto" step="0.01"></div>
-      <div class="modal-field" id="gm-temp-row" style="display:none;">
-        <label>Température (°C)</label>
-        <input type="number" id="gm-temperature" step="1">
-      </div>
-    </div>
-    <!-- Fan-specific fields -->
-    <div id="gm-fan-row" style="display:none;">
-      <div class="modal-section-title">Paramètres ventilateur</div>
-      <div class="modal-row">
-        <div class="modal-field">
-          <label>Direction</label>
-          <select id="gm-fan-dir">
-            <option value="right">→ Droite</option>
-            <option value="left">← Gauche</option>
-            <option value="up">↑ Haut</option>
-            <option value="down">↓ Bas</option>
-          </select>
-        </div>
-        <div class="modal-field">
-          <label>Vitesse (m/s)</label>
-          <input type="number" id="gm-fan-speed" value="2.0" min="0.01" step="0.1">
-        </div>
-      </div>
-    </div>
-    <div class="modal-btns">
-      <button class="top-btn" id="gm-cancel">Annuler</button>
-      <button class="top-btn active" id="gm-apply">✔ Appliquer</button>
-    </div>
-  </div>
-</div>
-
-<!-- ─── Scripts ─── -->
 <script src="js/geo.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/renderer.js"></script>
