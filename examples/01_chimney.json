@@ -1,27 +1,17 @@
 {
   "version": 3,
-  "meta": {
-    "name": "Effet cheminée (tirage thermique)",
-    "date": "2025-01-01T00:00:00.000Z",
-    "description": "Foyer très chaud dans un conduit étroit. L'air chaud monte par flottabilité, créant un appel d'air (tirage). Bords ouverts en haut pour évacuation."
-  },
+  "meta": { "name": "Effet cheminée (tirage thermique)", "date": "2025-01-01T00:00:00.000Z" },
   "domain": { "Lx": 3, "Ly": 6, "Nx": 40, "Ny": 80 },
   "boundary_conditions": { "top": "open", "bottom": "wall", "left": "wall", "right": "wall" },
-  "physics": {
-    "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3,
-    "gravity": 9.81, "T_amb": 15, "T_hot": 300, "T_cold": 0, "fan_speed": 2.0
-  },
+  "physics": { "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3, "gravity": 9.81, "T_amb": 15 },
   "numerics": { "cfl": 0.45, "spf": 2, "iter": 20, "sim_speed": 1.0 },
   "geometry_objects": [
-    { "id": 1, "name": "Mur cheminée gauche", "type": "wall", "shape": "rect",
-      "x0": 1.05, "y0": 0.3, "x1": 1.1, "y1": 5.7, "radius": null, "visible": true, "props": {} },
-    { "id": 2, "name": "Mur cheminée droit",  "type": "wall", "shape": "rect",
-      "x0": 1.9, "y0": 0.3, "x1": 1.95, "y1": 5.7, "radius": null, "visible": true, "props": {} },
-    { "id": 3, "name": "Foyer",               "type": "hot",  "shape": "rect",
-      "x0": 1.11, "y0": 4.8, "x1": 1.89, "y1": 5.7, "radius": null, "visible": true, "props": { "temperature": 300 } }
+    { "id": 1, "name": "Mur cheminée G", "type": "wall",   "shape": "rect",  "x0": 1.05, "y0": 0.3, "x1": 1.1,  "y1": 5.7,  "radius": null, "visible": true, "locked": false, "props": {} },
+    { "id": 2, "name": "Mur cheminée D", "type": "wall",   "shape": "rect",  "x0": 1.9,  "y0": 0.3, "x1": 1.95, "y1": 5.7,  "radius": null, "visible": true, "locked": false, "props": {} },
+    { "id": 3, "name": "Foyer",          "type": "source", "shape": "rect",  "x0": 1.11, "y0": 4.8, "x1": 1.89, "y1": 5.7,  "radius": null, "visible": true, "locked": false, "props": { "temperature": 300 } }
   ],
   "probes": [
-    { "id": 1, "label": "S1", "color": "#f0e040", "x": 1.5, "y": 1.0 },
-    { "id": 2, "label": "S2", "color": "#ff6b6b", "x": 1.5, "y": 3.0 }
+    { "id": 1, "label": "Bas", "color": "#f0e040", "x": 1.5, "y": 1.0 },
+    { "id": 2, "label": "Haut","color": "#ff6b6b", "x": 1.5, "y": 3.0 }
   ]
 }
