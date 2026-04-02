@@ -1,20 +1,14 @@
 {
   "version": 3,
-  "meta": { "name": "Cavité entraînée (lid-driven cavity)", "date": "2025-01-01T00:00:00.000Z",
-    "description": "Le couvercle supérieur est animé d'une vitesse horizontale (ventilateur). La recirculation de Taylor se développe. Fond chaud, plafond froid." },
+  "meta": { "name": "Cavité entraînée (lid-driven cavity)", "date": "2025-01-01T00:00:00.000Z" },
   "domain": { "Lx": 1, "Ly": 1, "Nx": 64, "Ny": 64 },
   "boundary_conditions": { "top": "wall", "bottom": "wall", "left": "wall", "right": "wall" },
-  "physics": {
-    "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3,
-    "gravity": 9.81, "T_amb": 20, "T_hot": 40, "T_cold": 10, "fan_speed": 1.0
-  },
+  "physics": { "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3, "gravity": 9.81, "T_amb": 20 },
   "numerics": { "cfl": 0.5, "spf": 2, "iter": 20, "sim_speed": 1.0 },
   "geometry_objects": [
-    { "id": 1, "name": "Couvercle mobile", "type": "fan_right", "shape": "hline", "x0": 0.02, "y0": 0.97, "x1": 0.98, "y1": 1, "radius": null, "visible": true, "props": {} },
-    { "id": 2, "name": "Fond chaud",       "type": "hot",        "shape": "hline", "x0": 0,    "y0": 0,    "x1": 1,    "y1": 0.03, "radius": null, "visible": true, "props": { "temperature": 40 } },
-    { "id": 3, "name": "Toit froid",       "type": "cold",       "shape": "hline", "x0": 0,    "y0": 0.97, "x1": 1,    "y1": 1, "radius": null, "visible": true, "props": { "temperature": 10 } }
+    { "id": 1, "name": "Couvercle mobile","type":"fan",    "shape":"hline","x0":0.02,"y0":0.97,"x1":0.98,"y1":1,    "radius":null,"visible":true,"locked":false,"props":{"speed":1,"angleDeg":0} },
+    { "id": 2, "name": "Fond chaud",      "type":"source", "shape":"hline","x0":0,   "y0":0,   "x1":1,   "y1":0.03, "radius":null,"visible":true,"locked":false,"props":{"temperature":40} },
+    { "id": 3, "name": "Toit froid",      "type":"source", "shape":"hline","x0":0,   "y0":0.97,"x1":1,   "y1":1,    "radius":null,"visible":true,"locked":false,"props":{"temperature":10} }
   ],
-  "probes": [
-    { "id": 1, "label": "Centre", "color": "#f0e040", "x": 0.5, "y": 0.5 }
-  ]
+  "probes": [{ "id": 1, "label": "Centre", "color": "#f0e040", "x": 0.5, "y": 0.5 }]
 }
