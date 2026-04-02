@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════
-// SIMULATION ENGINE (Navier-Stokes + Heat)
+// SIMULATION ENGINE
 // ═══════════════════════════════════════════
 'use strict';
 
-// C_FLUID, C_WALL, etc. are defined in geo.js (loaded first)
+// C_* constants defined in geo.js (loaded first)
 
 let Lx=5, Ly=5, Nx=64, Ny=64, dx, dy;
 function computeDxDy(){ dx=Lx/Nx; dy=Ly/Ny; }
@@ -24,19 +24,18 @@ function allocArrays(){
   cellType=new Uint8Array(s);
 }
 allocArrays();
-
 function idx(i,j){ return i*(Ny+2)+j; }
 
 let P = {
   visc:1.516e-5, diff:2.13e-5, beta:3.41e-3,
-  gravity:9.81, T_amb:20, T_hot:80, T_cold:0,
+  gravity:9.81, T_amb:20,
   cfl:0.5, spf:2, iter:20, sim_speed:1.0
 };
 
 let simTime=0, dt_cur=0.01;
 
 function computeDt(vmax){
-  // maxFanSpeed() is from geo.js — uses per-object fan speeds
+  // maxFanSpeed() from geo.js
   const fanRef = maxFanSpeed();
   const v = Math.max(vmax, fanRef, 0.01);
   return Math.max(1e-6, P.cfl*Math.min(dx,dy)/v*P.sim_speed);
@@ -45,22 +44,16 @@ function computeDt(vmax){
 // ── BOUNDARY CONDITIONS ────────────────────────────────────────────
 function applyBoundaryConditions(){
   for(let i=1;i<=Nx;i++){
-    // TOP ghost (j=0)
     const jt=1;
     switch(BC.top){
       case'wall': U[idx(i,0)]=-U[idx(i,jt)]; V[idx(i,0)]=0;  T[idx(i,0)]=T[idx(i,jt)]; break;
       case'open': U[idx(i,0)]=U[idx(i,jt)];  V[idx(i,0)]=Math.min(0,V[idx(i,jt)]); T[idx(i,0)]=P.T_amb; break;
-      case'hot':  U[idx(i,0)]=-U[idx(i,jt)]; V[idx(i,0)]=0;  T[idx(i,0)]=2*P.T_hot-T[idx(i,jt)]; break;
-      case'cold': U[idx(i,0)]=-U[idx(i,jt)]; V[idx(i,0)]=0;  T[idx(i,0)]=2*P.T_cold-T[idx(i,jt)]; break;
       case'sym':  U[idx(i,0)]=U[idx(i,jt)];  V[idx(i,0)]=-V[idx(i,jt)]; T[idx(i,0)]=T[idx(i,jt)]; break;
     }
-    // BOTTOM ghost (j=Ny+1)
     const jb=Ny;
     switch(BC.bottom){
       case'wall': U[idx(i,Ny+1)]=-U[idx(i,jb)]; V[idx(i,Ny+1)]=0; T[idx(i,Ny+1)]=T[idx(i,jb)]; break;
       case'open': U[idx(i,Ny+1)]=U[idx(i,jb)];  V[idx(i,Ny+1)]=Math.max(0,V[idx(i,jb)]); T[idx(i,Ny+1)]=P.T_amb; break;
-      case'hot':  U[idx(i,Ny+1)]=-U[idx(i,jb)]; V[idx(i,Ny+1)]=0; T[idx(i,Ny+1)]=2*P.T_hot-T[idx(i,jb)]; break;
-      case'cold': U[idx(i,Ny+1)]=-U[idx(i,jb)]; V[idx(i,Ny+1)]=0; T[idx(i,Ny+1)]=2*P.T_cold-T[idx(i,jb)]; break;
       case'sym':  U[idx(i,Ny+1)]=U[idx(i,jb)];  V[idx(i,Ny+1)]=-V[idx(i,jb)]; T[idx(i,Ny+1)]=T[idx(i,jb)]; break;
     }
   }
@@ -69,39 +62,40 @@ function applyBoundaryConditions(){
     switch(BC.left){
       case'wall': U[idx(0,j)]=0;  V[idx(0,j)]=-V[idx(il,j)]; T[idx(0,j)]=T[idx(il,j)]; break;
       case'open': U[idx(0,j)]=Math.min(0,U[idx(il,j)]); V[idx(0,j)]=V[idx(il,j)]; T[idx(0,j)]=P.T_amb; break;
-      case'hot':  U[idx(0,j)]=0;  V[idx(0,j)]=-V[idx(il,j)]; T[idx(0,j)]=2*P.T_hot-T[idx(il,j)]; break;
-      case'cold': U[idx(0,j)]=0;  V[idx(0,j)]=-V[idx(il,j)]; T[idx(0,j)]=2*P.T_cold-T[idx(il,j)]; break;
       case'sym':  U[idx(0,j)]=-U[idx(il,j)]; V[idx(0,j)]=V[idx(il,j)]; T[idx(0,j)]=T[idx(il,j)]; break;
     }
     const ir=Nx;
     switch(BC.right){
       case'wall': U[idx(Nx+1,j)]=0; V[idx(Nx+1,j)]=-V[idx(ir,j)]; T[idx(Nx+1,j)]=T[idx(ir,j)]; break;
       case'open': U[idx(Nx+1,j)]=Math.max(0,U[idx(ir,j)]); V[idx(Nx+1,j)]=V[idx(ir,j)]; T[idx(Nx+1,j)]=P.T_amb; break;
-      case'hot':  U[idx(Nx+1,j)]=0; V[idx(Nx+1,j)]=-V[idx(ir,j)]; T[idx(Nx+1,j)]=2*P.T_hot-T[idx(ir,j)]; break;
-      case'cold': U[idx(Nx+1,j)]=0; V[idx(Nx+1,j)]=-V[idx(ir,j)]; T[idx(Nx+1,j)]=2*P.T_cold-T[idx(ir,j)]; break;
       case'sym':  U[idx(Nx+1,j)]=-U[idx(ir,j)]; V[idx(Nx+1,j)]=V[idx(ir,j)]; T[idx(Nx+1,j)]=T[idx(ir,j)]; break;
     }
   }
 }
 
-// Build a per-cell fan velocity map from geoObjects (called after rasterize)
-let _fanU = null, _fanV = null;
+// Per-cell fan velocity maps (built from geo objects, updated on rebuildFromGeo)
+let _fanU=null, _fanV=null;
 function buildFanMap(){
   const s=(Nx+2)*(Ny+2);
-  _fanU = new Float32Array(s);
-  _fanV = new Float32Array(s);
-  // Use same rasterize logic but only for fan objects → record U/V per cell
+  _fanU=new Float32Array(s); _fanV=new Float32Array(s);
   function physToCell(px,py){
     return [Math.max(1,Math.min(Nx,Math.floor(px/dx)+1)),
             Math.max(1,Math.min(Ny,Math.floor((Ly-py)/dy)+1))];
   }
-  for (const obj of geoObjects) {
-    if (!obj.visible || obj.type!=='fan') continue;
+  for(const obj of geoObjects){
+    if(!obj.visible||obj.type!=='fan') continue;
     const dir=obj.props.direction||'right';
     const spd=obj.props.speed??2.0;
-    let fu=0,fv=0;
-    if(dir==='right') fu= spd; if(dir==='left') fu=-spd;
-    if(dir==='up')    fv=-spd; if(dir==='down') fv= spd;
+    const angleDeg=obj.props.angleDeg??null;
+    let fu,fv;
+    if(angleDeg!==null){
+      const rad=angleDeg*Math.PI/180;
+      fu=spd*Math.cos(rad); fv=-spd*Math.sin(rad); // y-down in grid
+    } else {
+      fu=0; fv=0;
+      if(dir==='right') fu= spd; if(dir==='left') fu=-spd;
+      if(dir==='up')    fv=-spd; if(dir==='down') fv= spd;
+    }
     const [i0,j1]=physToCell(obj.x0,obj.y1);
     const [i1,j0]=physToCell(obj.x1,obj.y0);
     for(let i=Math.min(i0,i1);i<=Math.max(i0,i1);i++)
@@ -113,21 +107,60 @@ function buildFanMap(){
   }
 }
 
+// Per-cell source temperature maps
+let _srcT=null; // temperature imposed at each source cell (C_HOT / C_COLD)
+function buildSrcTMap(){
+  const s=(Nx+2)*(Ny+2);
+  _srcT=new Float32Array(s);
+  _srcT.fill(NaN); // NaN = not a source cell
+  function physToCell(px,py){
+    return [Math.max(1,Math.min(Nx,Math.floor(px/dx)+1)),
+            Math.max(1,Math.min(Ny,Math.floor((Ly-py)/dy)+1))];
+  }
+  for(const obj of geoObjects){
+    if(!obj.visible||(obj.type!=='source'&&obj.type!=='hot'&&obj.type!=='cold')) continue;
+    const t=obj.props.temperature??20;
+    const [i0,j1]=physToCell(obj.x0,obj.y1);
+    const [i1,j0]=physToCell(obj.x1,obj.y0);
+    for(let i=Math.min(i0,i1);i<=Math.max(i0,i1);i++)
+      for(let j=Math.min(j0,j1);j<=Math.max(j0,j1);j++){
+        if(i<1||i>Nx||j<1||j>Ny) continue;
+        const ix=i*(Ny+2)+j;
+        // Circle check
+        if(obj.shape==='circle'){
+          const cxp=(obj.x0+obj.x1)/2, cyp=(obj.y0+obj.y1)/2;
+          const rp=obj.radius??Math.min(obj.x1-obj.x0,obj.y1-obj.y0)/2;
+          const ci=cxp/dx+0.5, cj=(Ly-cyp)/dy+0.5;
+          const ri=rp/dx, rj=rp/dy;
+          if((i-ci)**2/ri**2+(j-cj)**2/rj**2>1) continue;
+        }
+        _srcT[ix]=t;
+      }
+  }
+}
+
 function applyInternalBC(){
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
     const c=cellType[idx(i,j)];
     if(c===C_WALL){ U[idx(i,j)]=0; V[idx(i,j)]=0; }
-    else if(c===C_HOT){  T[idx(i,j)]=_hotT?.[idx(i,j)]??P.T_hot;  U[idx(i,j)]=0; V[idx(i,j)]=0; }
-    else if(c===C_COLD){ T[idx(i,j)]=_coldT?.[idx(i,j)]??P.T_cold; U[idx(i,j)]=0; V[idx(i,j)]=0; }
-    else if(c>=C_FAN_R&&c<=C_FAN_D){
-      if(_fanU){ U[idx(i,j)]=_fanU[idx(i,j)]; V[idx(i,j)]=_fanV[idx(i,j)]; }
+    else if(c===C_HOT||c===C_COLD){
+      const t=_srcT?.[idx(i,j)];
+      if(!isNaN(t)) T[idx(i,j)]=t;
+      U[idx(i,j)]=0; V[idx(i,j)]=0;
+    }
+    else if(c>=C_FAN_R&&c<=C_FAN_D&&_fanU){
+      U[idx(i,j)]=_fanU[idx(i,j)];
+      V[idx(i,j)]=_fanV[idx(i,j)];
     }
   }
 }
 
 function applyAllBC(){ applyBoundaryConditions(); applyInternalBC(); }
 
-// Zero-flux at wall faces
+// ── SOLVERS ────────────────────────────────────────────────────────
+// For temperature: wall cells are FROZEN (not updated) and act as zero-flux
+// by virtue of nbr() returning the fluid cell's own value at wall faces.
+// This prevents walls from conducting heat themselves.
 function nbr(x,ii,jj,selfVal){
   return cellType[idx(ii,jj)]===C_WALL ? selfVal : x[idx(ii,jj)];
 }
@@ -138,21 +171,25 @@ function linSolve(x,x0,ax,ay,iters,isTemp){
     for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
       const ct=cellType[idx(i,j)];
       if(ct===C_WALL){
-        if(isTemp){
-          let sum=0,cnt=0;
-          const ns=[[i+1,j],[i-1,j],[i,j+1],[i,j-1]];
-          for(const[ni,nj] of ns){
-            if(ni>=1&&ni<=Nx&&nj>=1&&nj<=Ny&&cellType[idx(ni,nj)]!==C_WALL){sum+=x[idx(ni,nj)];cnt++;}
-          }
-          if(cnt>0) x[idx(i,j)]=sum/cnt;
-        } else { x[idx(i,j)]=0; }
+        if(!isTemp) x[idx(i,j)]=0;
+        // For temperature: wall cells are NOT updated here at all.
+        // Their value is irrelevant since nbr() never uses them.
         continue;
+      }
+      if(ct===C_HOT||ct===C_COLD){
+        // Source cells: temperature is Dirichlet (fixed), skip diffusion
+        if(isTemp) continue;
+        x[idx(i,j)]=0; continue;
       }
       if(isTemp){
         const self=x[idx(i,j)];
-        x[idx(i,j)]=(x0[idx(i,j)]+ax*(nbr(x,i+1,j,self)+nbr(x,i-1,j,self))+ay*(nbr(x,i,j+1,self)+nbr(x,i,j-1,self)))*cR;
+        x[idx(i,j)]=(x0[idx(i,j)]
+          +ax*(nbr(x,i+1,j,self)+nbr(x,i-1,j,self))
+          +ay*(nbr(x,i,j+1,self)+nbr(x,i,j-1,self)))*cR;
       } else {
-        x[idx(i,j)]=(x0[idx(i,j)]+ax*(x[idx(i+1,j)]+x[idx(i-1,j)])+ay*(x[idx(i,j+1)]+x[idx(i,j-1)]))*cR;
+        x[idx(i,j)]=(x0[idx(i,j)]
+          +ax*(x[idx(i+1,j)]+x[idx(i-1,j)])
+          +ay*(x[idx(i,j+1)]+x[idx(i,j-1)]))*cR;
       }
     }
     applyBoundaryConditions();
@@ -165,15 +202,16 @@ function diffuse(x,x0,coeff,dt,isTemp=false){
 }
 
 function sampleField(d0,x,y){
-  x=Math.max(.5,Math.min(Nx+.5,x)); y=Math.max(.5,Math.min(Ny+.5,y));
+  x=Math.max(.5,Math.min(Nx+.5,x));
+  y=Math.max(.5,Math.min(Ny+.5,y));
   const i0=Math.floor(x),i1=Math.min(i0+1,Nx+1);
   const j0=Math.floor(y),j1=Math.min(j0+1,Ny+1);
   const s1=x-i0,s0=1-s1,t1=y-j0,t0=1-t1;
   const corners=[[i0,j0,s0*t0],[i0,j1,s0*t1],[i1,j0,s1*t0],[i1,j1,s1*t1]];
   let sum=0,wsum=0;
   for(const[ci,cj,w] of corners){
-    const isWall=ci>=1&&ci<=Nx&&cj>=1&&cj<=Ny&&cellType[idx(ci,cj)]===C_WALL;
-    if(!isWall){ sum+=d0[idx(ci,cj)]*w; wsum+=w; }
+    if(ci>=1&&ci<=Nx&&cj>=1&&cj<=Ny&&cellType[idx(ci,cj)]===C_WALL) continue;
+    sum+=d0[idx(ci,cj)]*w; wsum+=w;
   }
   if(wsum<1e-9) return d0[idx(Math.round(x),Math.round(y))];
   return sum/wsum;
@@ -182,7 +220,10 @@ function sampleField(d0,x,y){
 function advect(d,d0,u,v,dt,isTemp=false){
   const dtx=dt/dx, dty=dt/dy;
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
-    if(cellType[idx(i,j)]===C_WALL) continue;
+    const ct=cellType[idx(i,j)];
+    if(ct===C_WALL) continue;
+    // Source cells: temperature is fixed, don't advect
+    if(isTemp&&(ct===C_HOT||ct===C_COLD)) continue;
     const bx=i-dtx*u[idx(i,j)], by=j-dty*v[idx(i,j)];
     if(isTemp){
       d[idx(i,j)]=sampleField(d0,bx,by);
@@ -236,25 +277,25 @@ function simStep(dt){
   applyAllBC();
   T0.set(T); diffuse(T,T0,P.diff,dt,true);
   T0.set(T); advect(T,T0,U,V,dt,true);
-  applyAllBC();
+  applyAllBC(); // re-enforces source temperatures
 }
 
 // ── STATS ─────────────────────────────────────────────────────────
-let simStats = { tMin:0, tMax:100, vMax:0, vAvg:0 };
+let simStats={tMin:0,tMax:100,vMax:0,vAvg:0};
 function gatherStats(){
-  let tMin=Infinity, tMax=-Infinity, vMax=0, vSum=0, n=0;
+  let tMin=Infinity,tMax=-Infinity,vMax=0,vSum=0,n=0;
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
     const t=T[idx(i,j)];
     if(t<tMin)tMin=t; if(t>tMax)tMax=t;
     const sp=Math.hypot(U[idx(i,j)],V[idx(i,j)]);
     if(sp>vMax)vMax=sp; vSum+=sp; n++;
   }
-  if(!isFinite(tMin)){ tMin=P.T_cold; tMax=P.T_hot; }
+  if(!isFinite(tMin)){tMin=0;tMax=100;}
   if(tMax===tMin) tMax=tMin+1;
-  simStats = { tMin, tMax, vMax, vAvg:n?vSum/n:0 };
+  simStats={tMin,tMax,vMax,vAvg:n?vSum/n:0};
 }
 
-// ── DOMAIN CHANGE ─────────────────────────────────────────────────
+// ── DOMAIN & REBUILD ──────────────────────────────────────────────
 function applyDomain(lx,ly,nx,ny){
   Lx=lx; Ly=ly; Nx=nx; Ny=ny; computeDxDy(); allocArrays();
 }
@@ -266,39 +307,19 @@ function resetFields(){
   simTime=0;
 }
 
-// Per-cell temperature override maps (built from geo objects)
-let _hotT = null, _coldT = null;
-
-function buildTempMaps(){
-  const s=(Nx+2)*(Ny+2);
-  _hotT  = new Float32Array(s);
-  _coldT = new Float32Array(s);
-  // Fill with defaults
-  _hotT.fill(P.T_hot); _coldT.fill(P.T_cold);
-  // Override per geo object
-  function physToCell(px,py){
-    return [Math.max(1,Math.min(Nx,Math.floor(px/dx)+1)),
-            Math.max(1,Math.min(Ny,Math.floor((Ly-py)/dy)+1))];
-  }
-  for (const obj of geoObjects) {
-    if (!obj.visible) continue;
-    if (obj.type!=='hot' && obj.type!=='cold') continue;
-    const t = obj.props.temperature ?? (obj.type==='hot' ? P.T_hot : P.T_cold);
-    const [i0,j1]=physToCell(obj.x0,obj.y1);
-    const [i1,j0]=physToCell(obj.x1,obj.y0);
-    const arr = obj.type==='hot' ? _hotT : _coldT;
-    for(let i=Math.min(i0,i1);i<=Math.max(i0,i1);i++)
-      for(let j=Math.min(j0,j1);j<=Math.max(j0,j1);j++){
-        if(i<1||i>Nx||j<1||j>Ny) continue;
-        arr[i*(Ny+2)+j]=t;
-      }
-  }
-}
+let _hotT=null, _coldT=null; // legacy — kept for backward compat refs
 
 function rebuildFromGeo(){
   resetFields();
-  rasterizeGeoObjects(cellType, T, U, V, Nx, Ny, dx, dy, Ly, P);
+  rasterizeGeoObjects(cellType,T,U,V,Nx,Ny,dx,dy,Ly,P);
   buildFanMap();
-  buildTempMaps();
+  buildSrcTMap();
+  // Apply source temperatures to T array
+  if(_srcT){
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+      const t=_srcT[idx(i,j)];
+      if(!isNaN(t)) T[idx(i,j)]=t;
+    }
+  }
   applyAllBC();
 }
