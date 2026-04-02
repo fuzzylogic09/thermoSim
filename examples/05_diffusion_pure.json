@@ -1,21 +1,19 @@
 {
   "version": 3,
-  "meta": { "name": "Diffusion pure (loi de Fourier)", "date": "2025-01-01T00:00:00.000Z",
-    "description": "Gravité nulle. Seule la diffusion thermique agit (loi de Fourier). Profil linéaire à l'équilibre entre fond chaud et plafond froid." },
+  "meta": { "name": "Diffusion pure (loi de Fourier, g=0)", "date": "2025-01-01T00:00:00.000Z" },
   "domain": { "Lx": 1, "Ly": 1, "Nx": 64, "Ny": 64 },
-  "boundary_conditions": { "top": "cold", "bottom": "hot", "left": "wall", "right": "wall" },
-  "physics": {
-    "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3,
-    "gravity": 0, "T_amb": 50, "T_hot": 100, "T_cold": 0, "fan_speed": 2.0
-  },
+  "boundary_conditions": { "top": "wall", "bottom": "wall", "left": "wall", "right": "wall" },
+  "physics": { "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3, "gravity": 0, "T_amb": 50 },
   "numerics": { "cfl": 0.5, "spf": 2, "iter": 20, "sim_speed": 1.0 },
   "geometry_objects": [
-    { "id": 1, "name": "Mur gauche", "type": "wall", "shape": "vline", "x0": 0, "y0": 0, "x1": 0.02, "y1": 1, "radius": null, "visible": true, "props": {} },
-    { "id": 2, "name": "Mur droit",  "type": "wall", "shape": "vline", "x0": 0.98, "y0": 0, "x1": 1, "y1": 1, "radius": null, "visible": true, "props": {} }
+    { "id": 1, "name": "Mur gauche","type": "wall",   "shape": "vline", "x0": 0,    "y0": 0,    "x1": 0.02, "y1": 1,    "radius": null, "visible": true, "locked": true, "props": {} },
+    { "id": 2, "name": "Mur droit", "type": "wall",   "shape": "vline", "x0": 0.98, "y0": 0,    "x1": 1,    "y1": 1,    "radius": null, "visible": true, "locked": true, "props": {} },
+    { "id": 3, "name": "Source chaude","type":"source","shape":"hline",  "x0": 0,    "y0": 0,    "x1": 1,    "y1": 0.02, "radius": null, "visible": true, "locked": false,"props": { "temperature": 100 } },
+    { "id": 4, "name": "Source froide","type":"source","shape":"hline",  "x0": 0,    "y0": 0.98, "x1": 1,    "y1": 1,    "radius": null, "visible": true, "locked": false,"props": { "temperature": 0 } }
   ],
   "probes": [
-    { "id": 1, "label": "Bas",     "color": "#f0e040", "x": 0.5, "y": 0.1 },
-    { "id": 2, "label": "Milieu",  "color": "#4ecdc4", "x": 0.5, "y": 0.5 },
-    { "id": 3, "label": "Haut",    "color": "#ff6b6b", "x": 0.5, "y": 0.9 }
+    { "id": 1, "label": "Bas",    "color": "#f0e040", "x": 0.5, "y": 0.1 },
+    { "id": 2, "label": "Milieu", "color": "#4ecdc4", "x": 0.5, "y": 0.5 },
+    { "id": 3, "label": "Haut",   "color": "#ff6b6b", "x": 0.5, "y": 0.9 }
   ]
 }
