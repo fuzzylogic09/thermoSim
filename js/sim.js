@@ -10,9 +10,9 @@ function computeDxDy(){ dx=Lx/Nx; dy=Ly/Ny; }
 computeDxDy();
 
 let BC = { top:'wall', bottom:'wall', left:'wall', right:'wall' };
-const BC_CYCLE  = ['wall','open','hot','cold','sym'];
-const BC_LABEL  = { wall:'Mur', open:'Ouvert', hot:'Chaud', cold:'Froid', sym:'Symétrie' };
-const BC_CLASS  = { wall:'bc-wall', open:'bc-open', hot:'bc-hot', cold:'bc-cold', sym:'bc-sym' };
+const BC_CYCLE  = ['wall','open','sym'];
+const BC_LABEL  = { wall:'Mur', open:'Ouvert', sym:'Symétrie' };
+const BC_CLASS  = { wall:'bc-wall', open:'bc-open', sym:'bc-sym' };
 
 let U,V,U0,V0,T,T0,pres,divg,cellType;
 function allocArrays(){
@@ -30,21 +30,14 @@ function idx(i,j){ return i*(Ny+2)+j; }
 let P = {
   visc:1.516e-5, diff:2.13e-5, beta:3.41e-3,
   gravity:9.81, T_amb:20, T_hot:80, T_cold:0,
-  fan_speed:2.0, cfl:0.5, spf:2, iter:20, sim_speed:1.0
+  cfl:0.5, spf:2, iter:20, sim_speed:1.0
 };
 
 let simTime=0, dt_cur=0.01;
 
-function hasFanCells(){
-  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
-    const c=cellType[idx(i,j)];
-    if(c>=C_FAN_R&&c<=C_FAN_D) return true;
-  }
-  return false;
-}
-
 function computeDt(vmax){
-  const fanRef = hasFanCells() ? P.fan_speed : 0;
+  // maxFanSpeed() is from geo.js — uses per-object fan speeds
+  const fanRef = maxFanSpeed();
   const v = Math.max(vmax, fanRef, 0.01);
   return Math.max(1e-6, P.cfl*Math.min(dx,dy)/v*P.sim_speed);
 }
@@ -91,16 +84,44 @@ function applyBoundaryConditions(){
   }
 }
 
+// Build a per-cell fan velocity map from geoObjects (called after rasterize)
+let _fanU = null, _fanV = null;
+function buildFanMap(){
+  const s=(Nx+2)*(Ny+2);
+  _fanU = new Float32Array(s);
+  _fanV = new Float32Array(s);
+  // Use same rasterize logic but only for fan objects → record U/V per cell
+  function physToCell(px,py){
+    return [Math.max(1,Math.min(Nx,Math.floor(px/dx)+1)),
+            Math.max(1,Math.min(Ny,Math.floor((Ly-py)/dy)+1))];
+  }
+  for (const obj of geoObjects) {
+    if (!obj.visible || obj.type!=='fan') continue;
+    const dir=obj.props.direction||'right';
+    const spd=obj.props.speed??2.0;
+    let fu=0,fv=0;
+    if(dir==='right') fu= spd; if(dir==='left') fu=-spd;
+    if(dir==='up')    fv=-spd; if(dir==='down') fv= spd;
+    const [i0,j1]=physToCell(obj.x0,obj.y1);
+    const [i1,j0]=physToCell(obj.x1,obj.y0);
+    for(let i=Math.min(i0,i1);i<=Math.max(i0,i1);i++)
+      for(let j=Math.min(j0,j1);j<=Math.max(j0,j1);j++){
+        if(i<1||i>Nx||j<1||j>Ny) continue;
+        const ix=i*(Ny+2)+j;
+        _fanU[ix]=fu; _fanV[ix]=fv;
+      }
+  }
+}
+
 function applyInternalBC(){
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
     const c=cellType[idx(i,j)];
     if(c===C_WALL){ U[idx(i,j)]=0; V[idx(i,j)]=0; }
-    else if(c===C_HOT){  T[idx(i,j)]=P.T_hot;  U[idx(i,j)]=0; V[idx(i,j)]=0; }
-    else if(c===C_COLD){ T[idx(i,j)]=P.T_cold; U[idx(i,j)]=0; V[idx(i,j)]=0; }
-    else if(c===C_FAN_R){ U[idx(i,j)]=P.fan_speed;  V[idx(i,j)]=0; }
-    else if(c===C_FAN_L){ U[idx(i,j)]=-P.fan_speed; V[idx(i,j)]=0; }
-    else if(c===C_FAN_U){ V[idx(i,j)]=-P.fan_speed; U[idx(i,j)]=0; }
-    else if(c===C_FAN_D){ V[idx(i,j)]=P.fan_speed;  U[idx(i,j)]=0; }
+    else if(c===C_HOT){  T[idx(i,j)]=_hotT?.[idx(i,j)]??P.T_hot;  U[idx(i,j)]=0; V[idx(i,j)]=0; }
+    else if(c===C_COLD){ T[idx(i,j)]=_coldT?.[idx(i,j)]??P.T_cold; U[idx(i,j)]=0; V[idx(i,j)]=0; }
+    else if(c>=C_FAN_R&&c<=C_FAN_D){
+      if(_fanU){ U[idx(i,j)]=_fanU[idx(i,j)]; V[idx(i,j)]=_fanV[idx(i,j)]; }
+    }
   }
 }
 
@@ -245,19 +266,39 @@ function resetFields(){
   simTime=0;
 }
 
-/**
- * Re-rasterize and restart: called when geometry or domain changes.
- * Keeps object list intact, rebuilds matrices.
- */
+// Per-cell temperature override maps (built from geo objects)
+let _hotT = null, _coldT = null;
+
+function buildTempMaps(){
+  const s=(Nx+2)*(Ny+2);
+  _hotT  = new Float32Array(s);
+  _coldT = new Float32Array(s);
+  // Fill with defaults
+  _hotT.fill(P.T_hot); _coldT.fill(P.T_cold);
+  // Override per geo object
+  function physToCell(px,py){
+    return [Math.max(1,Math.min(Nx,Math.floor(px/dx)+1)),
+            Math.max(1,Math.min(Ny,Math.floor((Ly-py)/dy)+1))];
+  }
+  for (const obj of geoObjects) {
+    if (!obj.visible) continue;
+    if (obj.type!=='hot' && obj.type!=='cold') continue;
+    const t = obj.props.temperature ?? (obj.type==='hot' ? P.T_hot : P.T_cold);
+    const [i0,j1]=physToCell(obj.x0,obj.y1);
+    const [i1,j0]=physToCell(obj.x1,obj.y0);
+    const arr = obj.type==='hot' ? _hotT : _coldT;
+    for(let i=Math.min(i0,i1);i<=Math.max(i0,i1);i++)
+      for(let j=Math.min(j0,j1);j<=Math.max(j0,j1);j++){
+        if(i<1||i>Nx||j<1||j>Ny) continue;
+        arr[i*(Ny+2)+j]=t;
+      }
+  }
+}
+
 function rebuildFromGeo(){
   resetFields();
-  // rasterizeGeoObjects is defined in geo.js
   rasterizeGeoObjects(cellType, T, U, V, Nx, Ny, dx, dy, Ly, P);
-  // Re-apply temperatures to hot/cold cells
-  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
-    const c=cellType[idx(i,j)];
-    if(c===C_HOT)       T[idx(i,j)]=P.T_hot;
-    else if(c===C_COLD) T[idx(i,j)]=P.T_cold;
-  }
+  buildFanMap();
+  buildTempMaps();
   applyAllBC();
 }
