@@ -3,16 +3,10 @@
   "meta": { "name": "Tuyau chaud en milieu libre", "date": "2025-01-01T00:00:00.000Z" },
   "domain": { "Lx": 2, "Ly": 2, "Nx": 64, "Ny": 64 },
   "boundary_conditions": { "top": "open", "bottom": "open", "left": "open", "right": "open" },
-  "physics": {
-    "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3,
-    "gravity": 9.81, "T_amb": 20, "T_hot": 200, "T_cold": 0, "fan_speed": 2.0
-  },
+  "physics": { "visc": 1.5e-5, "diff": 2.1e-5, "beta": 3.4e-3, "gravity": 9.81, "T_amb": 20 },
   "numerics": { "cfl": 0.5, "spf": 2, "iter": 20, "sim_speed": 1.0 },
   "geometry_objects": [
-    { "id": 1, "name": "Tuyau chaud", "type": "hot", "shape": "circle",
-      "x0": 0.7, "y0": 0.7, "x1": 1.3, "y1": 1.3, "radius": 0.3, "visible": true, "props": { "temperature": 200 } }
+    { "id": 1, "name": "Tuyau chaud", "type": "source", "shape": "circle", "x0": 0.7, "y0": 0.7, "x1": 1.3, "y1": 1.3, "radius": 0.3, "visible": true, "locked": false, "props": { "temperature": 200 } }
   ],
-  "probes": [
-    { "id": 1, "label": "Panache", "color": "#f0e040", "x": 1.0, "y": 1.7 }
-  ]
+  "probes": [{ "id": 1, "label": "Panache", "color": "#f0e040", "x": 1.0, "y": 1.7 }]
 }
