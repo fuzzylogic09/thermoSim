@@ -95,28 +95,41 @@ function drawRulers(ox,oy,gw,gh){
 
 // ── GEO OBJECT OVERLAYS ───────────────────────────────────────────
 function drawGeoOverlays(ox,oy,gw,gh){
-  // Draw outlines of geo objects on canvas
+  if(geoObjects.length===0) return;
   ctx.save();
-  ctx.lineWidth=1;
+  ctx.font=`${Math.max(9,Math.min(13,cellPx*zoom*.7))}px DM Sans`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
   for(const obj of geoObjects){
     if(!obj.visible) continue;
-    const color = typeColor(obj.type);
-    ctx.strokeStyle = color + 'cc';
-    ctx.setLineDash([3,3]);
+    const color=typeColor(obj.type);
+    const isSelected=(typeof selectedGeoId!=='undefined'&&obj.id===selectedGeoId)
+                   ||(typeof dragGeoObj!=='undefined'&&dragGeoObj&&obj.id===dragGeoObj.id);
     if(obj.shape==='circle'){
-      const cxS = ox + ((obj.x0+obj.x1)/2/Lx)*gw;
-      const cyS = oy + ((Ly-(obj.y0+obj.y1)/2)/Ly)*gh;
-      const r_phys = obj.radius ?? Math.min(obj.x1-obj.x0,obj.y1-obj.y0)/2;
-      const rS  = r_phys/Lx*gw;
-      ctx.beginPath(); ctx.arc(cxS,cyS,rS,0,Math.PI*2); ctx.stroke();
+      const cxS=ox+((obj.x0+obj.x1)/2/Lx)*gw;
+      const cyS=oy+((Ly-(obj.y0+obj.y1)/2)/Ly)*gh;
+      const rp=obj.radius??Math.min(obj.x1-obj.x0,obj.y1-obj.y0)/2;
+      const rS=rp/Lx*gw;
+      ctx.beginPath(); ctx.arc(cxS,cyS,rS,0,Math.PI*2);
+      ctx.fillStyle=color+'22'; ctx.fill();
+      ctx.strokeStyle=color+(isSelected?'ff':'99');
+      ctx.lineWidth=isSelected?2.5:1.5; ctx.setLineDash(isSelected?[]:[4,3]);
+      ctx.stroke(); ctx.setLineDash([]);
+      if(rS>10){ ctx.fillStyle=color; ctx.fillText(typeIcon(obj.type),cxS,cyS); }
     } else {
-      const x0S = ox + obj.x0/Lx*gw;
-      const y0S = oy + (Ly-obj.y1)/Ly*gh; // top in screen
-      const wS  = (obj.x1-obj.x0)/Lx*gw;
-      const hS  = (obj.y1-obj.y0)/Ly*gh;
-      ctx.strokeRect(x0S, y0S, wS, hS);
+      const x0S=ox+obj.x0/Lx*gw;
+      const y0S=oy+(Ly-obj.y1)/Ly*gh;
+      const wS=(obj.x1-obj.x0)/Lx*gw;
+      const hS=(obj.y1-obj.y0)/Ly*gh;
+      ctx.fillStyle=color+'22'; ctx.fillRect(x0S,y0S,wS,hS);
+      ctx.strokeStyle=color+(isSelected?'ff':'99');
+      ctx.lineWidth=isSelected?2.5:1.5; ctx.setLineDash(isSelected?[]:[4,3]);
+      ctx.strokeRect(x0S,y0S,wS,hS); ctx.setLineDash([]);
+      if(wS>18&&hS>12){
+        ctx.fillStyle=color;
+        const lbl=typeIcon(obj.type)+(wS>60?(' '+obj.name):'');
+        ctx.fillText(lbl,x0S+wS/2,y0S+hS/2);
+      }
     }
-    ctx.setLineDash([]);
   }
   ctx.restore();
 }
@@ -127,7 +140,9 @@ function render(){
   const { tMin, tMax, vMax } = simStats;
   const { gw, gh, ox, oy } = getGeo();
 
-  ctx.fillStyle='#020208'; ctx.fillRect(0,0,W,H);
+  // Canvas background — theme-aware
+  const isDark = document.documentElement.getAttribute('data-theme')!=='light';
+  ctx.fillStyle=isDark?'#020208':'#d0d4e0'; ctx.fillRect(0,0,W,H);
 
   if(vizMode!=='vel'){
     const img=offCtx.getImageData(0,0,Nx,Ny);
@@ -147,7 +162,7 @@ function render(){
     ctx.imageSmoothingEnabled=false;
     ctx.drawImage(offC,ox,oy,gw,gh);
   } else {
-    ctx.fillStyle='#040414'; ctx.fillRect(ox,oy,gw,gh);
+    ctx.fillStyle=isDark?'#040414':'#d8dce8'; ctx.fillRect(ox,oy,gw,gh);
   }
 
   if(vizMode==='vel'||vizMode==='both'){
@@ -191,8 +206,8 @@ function render(){
     }
   }
 
-  // Geo outlines on top
-  if(zoom>1) drawGeoOverlays(ox,oy,gw,gh);
+  // Always draw geo object outlines on top
+  drawGeoOverlays(ox,oy,gw,gh);
 
   // Icons when zoomed in
   if(zoom>2){
