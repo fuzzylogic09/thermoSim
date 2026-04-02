@@ -2,15 +2,14 @@
   "version": 3,
   "meta": { "name": "Rayleigh-Bénard intense (turbulence thermique)", "date": "2025-01-01T00:00:00.000Z" },
   "domain": { "Lx": 8, "Ly": 2, "Nx": 128, "Ny": 32 },
-  "boundary_conditions": { "top": "cold", "bottom": "hot", "left": "wall", "right": "wall" },
-  "physics": {
-    "visc": 1e-5, "diff": 1.5e-5, "beta": 3.4e-3,
-    "gravity": 9.81, "T_amb": 40, "T_hot": 80, "T_cold": 0, "fan_speed": 2.0
-  },
+  "boundary_conditions": { "top": "wall", "bottom": "wall", "left": "wall", "right": "wall" },
+  "physics": { "visc": 1e-5, "diff": 1.5e-5, "beta": 3.4e-3, "gravity": 9.81, "T_amb": 40 },
   "numerics": { "cfl": 0.45, "spf": 3, "iter": 25, "sim_speed": 1.0 },
   "geometry_objects": [
-    { "id": 1, "name": "Mur gauche", "type": "wall", "shape": "vline", "x0": 0, "y0": 0, "x1": 0.05, "y1": 2, "radius": null, "visible": true, "props": {} },
-    { "id": 2, "name": "Mur droit",  "type": "wall", "shape": "vline", "x0": 7.95, "y0": 0, "x1": 8, "y1": 2, "radius": null, "visible": true, "props": {} }
+    { "id": 1, "name": "Mur gauche", "type": "wall",   "shape": "vline", "x0": 0,    "y0": 0, "x1": 0.05, "y1": 2,    "radius": null, "visible": true, "locked": true, "props": {} },
+    { "id": 2, "name": "Mur droit",  "type": "wall",   "shape": "vline", "x0": 7.95, "y0": 0, "x1": 8,    "y1": 2,    "radius": null, "visible": true, "locked": true, "props": {} },
+    { "id": 3, "name": "Plancher",   "type": "source", "shape": "hline", "x0": 0,    "y0": 0, "x1": 8,    "y1": 0.06, "radius": null, "visible": true, "locked": false,"props": { "temperature": 80 } },
+    { "id": 4, "name": "Plafond",    "type": "source", "shape": "hline", "x0": 0,    "y0": 1.94,"x1": 8, "y1": 2,    "radius": null, "visible": true, "locked": false,"props": { "temperature": 0 } }
   ],
   "probes": []
 }
