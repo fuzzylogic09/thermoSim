@@ -64,8 +64,8 @@ function renderProbeMarkers(){
     const sy = oy + ((Ly-p.y)/Ly)*gh;
     const g = document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('data-id', p.id);
-    g.style.cursor = (currentTool==='probe_move') ? 'grab' : 'default';
-    g.style.pointerEvents = (currentTool==='probe_move') ? 'all' : 'none';
+    g.style.cursor = (typeof currentTool!=='undefined'&&currentTool==='probe_move') ? 'grab' : 'default';
+    g.style.pointerEvents = (typeof currentTool!=='undefined'&&currentTool==='probe_move') ? 'all' : 'none';
 
     // Hit area
     const ring = document.createElementNS('http://www.w3.org/2000/svg','circle');
@@ -112,7 +112,7 @@ function renderProbeMarkers(){
 
     // Drag
     g.addEventListener('pointerdown', e=>{
-      if(currentTool!=='probe_move') return;
+      if(typeof currentTool==='undefined'||currentTool!=='probe_move') return;
       e.stopPropagation();
       dragProbe=p; g.style.cursor='grabbing';
       g.setPointerCapture(e.pointerId);

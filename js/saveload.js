@@ -40,6 +40,10 @@ function applyLoadedSimulation(obj){
     if(!confirm('Version de fichier inconnue (v'+obj.version+'). Tenter quand même ?')) return;
   }
 
+  // Clear current selection and close props panel
+  if(typeof selectedGeoId!=='undefined') selectedGeoId=null;
+  if(typeof closePropsPanel==='function') closePropsPanel();
+
   // Domain
   const d=obj.domain||{};
   applyDomain(d.Lx||5, d.Ly||5, d.Nx||64, d.Ny||64);
@@ -67,27 +71,20 @@ function applyLoadedSimulation(obj){
   BC.top=bc.top||'wall'; BC.bottom=bc.bottom||'wall';
   BC.left=bc.left||'wall'; BC.right=bc.right||'wall';
 
-  // Geometry objects (new system)
-  if(obj.geometry_objects){
-    deserializeGeoObjects(obj.geometry_objects);
-  }
+  // Geometry objects — deserialize first, then full rebuild
+  clearGeoObjects();
+  if(obj.geometry_objects) deserializeGeoObjects(obj.geometry_objects);
 
-  // Rebuild matrices from geometry
-  resetFields();
-  rasterizeGeoObjects(cellType,T,U,V,Nx,Ny,dx,dy,Ly,P);
-  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
-    const c=cellType[idx(i,j)];
-    if(c===C_HOT)       T[idx(i,j)]=P.T_hot;
-    else if(c===C_COLD) T[idx(i,j)]=P.T_cold;
-  }
-  applyAllBC();
+  // Full rebuild from geometry (resets fields, rasterizes, builds maps, applies BCs)
+  rebuildFromGeo();
   simTime=0;
 
   // Probes
   deserializeProbes(obj.probes||[]);
   clearProbeData();
+  if(typeof clearEnergyData==='function') clearEnergyData();
 
-  // Refresh UI
+  // Refresh all UI
   updateDomainInfo();
   updateBCUI();
   refreshSliders();

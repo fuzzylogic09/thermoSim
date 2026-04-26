@@ -218,7 +218,11 @@ document.getElementById('btn-play').addEventListener('click',()=>{
   b.classList.toggle('active',running);
 });
 document.getElementById('btn-step').addEventListener('click',()=>{ simStep(dt_cur); simTime+=dt_cur; });
-document.getElementById('btn-reset-fields').addEventListener('click',()=>{ resetFields(); rebuildFromGeo(); clearProbeData(); clearEnergyData(); });
+document.getElementById('btn-reset-fields').addEventListener('click',()=>{
+  resetFields(); rebuildFromGeo();
+  clearProbeData();
+  if(typeof clearEnergyData==='function') clearEnergyData();
+});
 document.getElementById('btn-clear').addEventListener('click',()=>{
   if(confirm('Effacer toute la géométrie et les champs ?')){
     clearGeoObjects(); selectedGeoId=null; rebuildFromGeo(); refreshGeoList(); closePropsPanel();

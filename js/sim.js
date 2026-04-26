@@ -203,12 +203,9 @@ function linSolve(x,x0,ax,ay,iters,isTemp){
       const ct=cellType[idx(i,j)];
       if(ct===C_WALL){
         if(!isTemp) x[idx(i,j)]=0;
-        // For temperature: wall cells are NOT updated here at all.
-        // Their value is irrelevant since nbr() never uses them.
         continue;
       }
       if(ct===C_HOT||ct===C_COLD){
-        // Source cells: temperature is Dirichlet (fixed), skip diffusion
         if(isTemp) continue;
         x[idx(i,j)]=0; continue;
       }
@@ -218,9 +215,13 @@ function linSolve(x,x0,ax,ay,iters,isTemp){
           +ax*(nbr(x,i+1,j,self)+nbr(x,i-1,j,self))
           +ay*(nbr(x,i,j+1,self)+nbr(x,i,j-1,self)))*cR;
       } else {
-        x[idx(i,j)]=(x0[idx(i,j)]
-          +ax*(x[idx(i+1,j)]+x[idx(i-1,j)])
-          +ay*(x[idx(i,j+1)]+x[idx(i,j-1)]))*cR;
+        // For velocity/pressure: use ghost cells but clip to valid domain neighbors at edges
+        // This prevents the ghost-cell symmetry from creating artificial gradients
+        const xL = i>1  ? x[idx(i-1,j)] : x[idx(i,j)];
+        const xR = i<Nx ? x[idx(i+1,j)] : x[idx(i,j)];
+        const xD = j>1  ? x[idx(i,j-1)] : x[idx(i,j)];
+        const xU = j<Ny ? x[idx(i,j+1)] : x[idx(i,j)];
+        x[idx(i,j)]=(x0[idx(i,j)]+ax*(xR+xL)+ay*(xU+xD))*cR;
       }
     }
     applyBoundaryConditions();
@@ -265,7 +266,14 @@ function advect(d,d0,u,v,dt,isTemp=false){
 function project(u,v,p,dv){
   const ax=1/(dx*dx),ay=1/(dy*dy),c=2*(ax+ay);
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
-    dv[idx(i,j)]=-.5*((u[idx(i+1,j)]-u[idx(i-1,j)])/dx+(v[idx(i,j+1)]-v[idx(i,j-1)])/dy);
+    // Use one-sided differences at domain borders to avoid ghost-cell contamination
+    const dudx = i===1  ? (u[idx(2,j)]-u[idx(1,j)])/dx
+                : i===Nx? (u[idx(Nx,j)]-u[idx(Nx-1,j)])/dx
+                :         (u[idx(i+1,j)]-u[idx(i-1,j)])/(2*dx);
+    const dvdy = j===1  ? (v[idx(i,2)]-v[idx(i,1)])/dy
+                : j===Ny? (v[idx(i,Ny)]-v[idx(i,Ny-1)])/dy
+                :         (v[idx(i,j+1)]-v[idx(i,j-1)])/(2*dy);
+    dv[idx(i,j)] = -(dudx+dvdy);
     p[idx(i,j)]=0;
   }
   applyBoundaryConditions();
@@ -276,8 +284,15 @@ function project(u,v,p,dv){
   }
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
     if(cellType[idx(i,j)]===C_WALL) continue;
-    u[idx(i,j)]-=.5*(p[idx(i+1,j)]-p[idx(i-1,j)])/dx;
-    v[idx(i,j)]-=.5*(p[idx(i,j+1)]-p[idx(i,j-1)])/dy;
+    // One-sided pressure gradient at domain edges
+    const dpdx = i===1  ? (p[idx(2,j)]-p[idx(1,j)])/dx
+                : i===Nx? (p[idx(Nx,j)]-p[idx(Nx-1,j)])/dx
+                :         (p[idx(i+1,j)]-p[idx(i-1,j)])/(2*dx);
+    const dpdy = j===1  ? (p[idx(i,2)]-p[idx(i,1)])/dy
+                : j===Ny? (p[idx(i,Ny)]-p[idx(i,Ny-1)])/dy
+                :         (p[idx(i,j+1)]-p[idx(i,j-1)])/(2*dy);
+    u[idx(i,j)] -= dpdx;
+    v[idx(i,j)] -= dpdy;
   }
   applyBoundaryConditions();
 }
@@ -285,7 +300,12 @@ function project(u,v,p,dv){
 function buoyancy(v,T,dt){
   const g=P.gravity, b=P.beta, Ta=P.T_amb;
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
-    if(cellType[idx(i,j)]!==C_FLUID) continue;
+    const c=cellType[idx(i,j)];
+    // Apply buoyancy to fluid cells AND non-blocking source cells
+    // (source cells have the right temperature and should push surrounding fluid)
+    if(c===C_WALL) continue;
+    if(c>=C_FAN_R&&c<=C_FAN_D) continue;
+    if((c===C_HOT||c===C_COLD)&&_srcBlocks?.[idx(i,j)]) continue;
     v[idx(i,j)]+=dt*(-g*b*(T[idx(i,j)]-Ta));
   }
 }
