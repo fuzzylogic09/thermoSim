@@ -10,7 +10,7 @@ function computeDxDy(){ dx=Lx/Nx; dy=Ly/Ny; }
 computeDxDy();
 
 let BC = { top:'wall', bottom:'wall', left:'wall', right:'wall' };
-const BC_CYCLE  = ['wall','open','sym'];
+const BC_CYCLE  = ['open','sym'];
 const BC_LABEL  = { wall:'Mur', open:'Ouvert', sym:'Symétrie' };
 const BC_CLASS  = { wall:'bc-wall', open:'bc-open', sym:'bc-sym' };
 
@@ -139,6 +139,36 @@ function buildSrcTMap(){
   }
 }
 
+// Per-cell blocksFlow flag for source objects
+let _srcBlocks=null;
+function buildSrcBlocksMap(){
+  const s=(Nx+2)*(Ny+2);
+  _srcBlocks=new Uint8Array(s); // 0=fluid flow ok, 1=blocks flow
+  function physToCell(px,py){
+    return [Math.max(1,Math.min(Nx,Math.floor(px/dx)+1)),
+            Math.max(1,Math.min(Ny,Math.floor((Ly-py)/dy)+1))];
+  }
+  for(const obj of geoObjects){
+    if(!obj.visible||(obj.type!=='source'&&obj.type!=='hot'&&obj.type!=='cold')) continue;
+    const blocks=obj.props.blocksFlow??false;
+    if(!blocks) continue;
+    const [i0,j1]=physToCell(obj.x0,obj.y1);
+    const [i1,j0]=physToCell(obj.x1,obj.y0);
+    for(let i=Math.min(i0,i1);i<=Math.max(i0,i1);i++)
+      for(let j=Math.min(j0,j1);j<=Math.max(j0,j1);j++){
+        if(i<1||i>Nx||j<1||j>Ny) continue;
+        if(obj.shape==='circle'){
+          const cxp=(obj.x0+obj.x1)/2, cyp=(obj.y0+obj.y1)/2;
+          const rp=obj.radius??Math.min(obj.x1-obj.x0,obj.y1-obj.y0)/2;
+          const ci=cxp/dx+0.5, cj=(Ly-cyp)/dy+0.5;
+          const ri=rp/dx, rj=rp/dy;
+          if((i-ci)**2/ri**2+(j-cj)**2/rj**2>1) continue;
+        }
+        _srcBlocks[i*(Ny+2)+j]=1;
+      }
+  }
+}
+
 function applyInternalBC(){
   for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
     const c=cellType[idx(i,j)];
@@ -146,7 +176,8 @@ function applyInternalBC(){
     else if(c===C_HOT||c===C_COLD){
       const t=_srcT?.[idx(i,j)];
       if(!isNaN(t)) T[idx(i,j)]=t;
-      U[idx(i,j)]=0; V[idx(i,j)]=0;
+      // Only zero out velocity if this source object blocks flow
+      if(_srcBlocks?.[idx(i,j)]){ U[idx(i,j)]=0; V[idx(i,j)]=0; }
     }
     else if(c>=C_FAN_R&&c<=C_FAN_D&&_fanU){
       U[idx(i,j)]=_fanU[idx(i,j)];
@@ -225,14 +256,8 @@ function advect(d,d0,u,v,dt,isTemp=false){
     // Source cells: temperature is fixed, don't advect
     if(isTemp&&(ct===C_HOT||ct===C_COLD)) continue;
     const bx=i-dtx*u[idx(i,j)], by=j-dty*v[idx(i,j)];
-    if(isTemp){
-      d[idx(i,j)]=sampleField(d0,bx,by);
-    } else {
-      const x=Math.max(.5,Math.min(Nx+.5,bx)),y=Math.max(.5,Math.min(Ny+.5,by));
-      const i0=Math.floor(x),i1=i0+1,j0=Math.floor(y),j1=j0+1;
-      const s1=x-i0,s0=1-s1,t1=y-j0,t0=1-t1;
-      d[idx(i,j)]=s0*(t0*d0[idx(i0,j0)]+t1*d0[idx(i0,j1)])+s1*(t0*d0[idx(i1,j0)]+t1*d0[idx(i1,j1)]);
-    }
+    // Always use sampleField (wall-aware bilinear) for both temp and velocity
+    d[idx(i,j)]=sampleField(d0,bx,by);
   }
   applyBoundaryConditions();
 }
@@ -314,6 +339,7 @@ function rebuildFromGeo(){
   rasterizeGeoObjects(cellType,T,U,V,Nx,Ny,dx,dy,Ly,P);
   buildFanMap();
   buildSrcTMap();
+  buildSrcBlocksMap();
   // Apply source temperatures to T array
   if(_srcT){
     for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){

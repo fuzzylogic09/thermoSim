@@ -159,8 +159,10 @@ function rebuildProbeLegend(){
 }
 
 function drawGraph(){
-  const cw=graphCanvas.parentElement.clientWidth;
-  const ch=graphCanvas.parentElement.clientHeight;
+  const wrap = graphCanvas.parentElement;
+  const cw = wrap.clientWidth  || wrap.offsetWidth  || 400;
+  const ch = wrap.clientHeight || wrap.offsetHeight || graphH - 36;
+  if(cw < 10 || ch < 10) return; // panel not visible yet
   if(graphCanvas.width!==cw||graphCanvas.height!==ch){
     graphCanvas.width=cw; graphCanvas.height=ch;
   }
@@ -255,3 +257,200 @@ function deserializeProbes(arr){
   renderProbeMarkers();
   if(probes.length>0) openGraphPanel();
 }
+
+// ── THERMAL ENERGY MONITOR ────────────────────────────────────────
+// Tracks domain mean temperature and source heat flux over time
+const energyData = []; // {t, Tmean, Tvar, flux}
+const MAX_ENERGY_SAMPLES = 4000;
+const ENERGY_SAMPLE_INTERVAL = 0.1;
+let lastEnergySampleTime = -Infinity;
+
+function sampleEnergy(){
+  if(simTime - lastEnergySampleTime < ENERGY_SAMPLE_INTERVAL) return;
+  lastEnergySampleTime = simTime;
+
+  let Tsum=0, Tsum2=0, nFluid=0;
+  // Mean temperature of fluid cells only
+  for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+    const c=cellType[idx(i,j)];
+    if(c===C_FLUID||c===C_HOT||c===C_COLD){
+      const t=T[idx(i,j)];
+      Tsum+=t; Tsum2+=t*t; nFluid++;
+    }
+  }
+  const Tmean = nFluid>0 ? Tsum/nFluid : P.T_amb;
+  const Tvar  = nFluid>0 ? Math.sqrt(Math.max(0,Tsum2/nFluid - Tmean*Tmean)) : 0;
+
+  // Approximate heat flux: sum of |T_source - T_neighbor| on source cell boundaries
+  // (proxy for how much heat is still being exchanged)
+  let flux=0;
+  if(_srcT){
+    for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
+      const t=_srcT[idx(i,j)];
+      if(isNaN(t)) continue;
+      // Check 4 neighbors: if neighbor is fluid, add delta T
+      for(const[ni,nj] of [[i+1,j],[i-1,j],[i,j+1],[i,j-1]]){
+        if(ni<1||ni>Nx||nj<1||nj>Ny) continue;
+        if(cellType[idx(ni,nj)]===C_FLUID){
+          flux += Math.abs(t - T[idx(ni,nj)]);
+        }
+      }
+    }
+    // Normalize by number of source boundary faces
+    flux = flux * (P.diff||2e-5) / (dx*dx);
+  }
+
+  energyData.push({t:simTime, Tmean, Tvar, flux});
+  if(energyData.length > MAX_ENERGY_SAMPLES) energyData.shift();
+}
+
+function clearEnergyData(){
+  energyData.length=0;
+  lastEnergySampleTime=-Infinity;
+}
+
+// Energy graph panel
+const energyPanel  = document.getElementById('energy-panel');
+const energyCanvas = document.getElementById('energy-canvas');
+const energyCtx    = energyCanvas.getContext('2d');
+
+function openEnergyPanel(){ energyPanel.classList.add('open'); }
+function closeEnergyPanel(){ energyPanel.classList.remove('open'); }
+function toggleEnergyPanel(){ energyPanel.classList.toggle('open'); }
+
+function drawEnergyGraph(){
+  if(!energyPanel.classList.contains('open')) return;
+  const wrap = energyCanvas.parentElement;
+  const cw = wrap.clientWidth  || 400;
+  const ch = wrap.clientHeight || 120;
+  if(cw<10||ch<10) return;
+  if(energyCanvas.width!==cw||energyCanvas.height!==ch){
+    energyCanvas.width=cw; energyCanvas.height=ch;
+  }
+  const GW=cw, GH=ch;
+  const PAD={top:8,right:14,bottom:28,left:48};
+  const plotW=GW-PAD.left-PAD.right;
+  const plotH=GH-PAD.top-PAD.bottom;
+
+  energyCtx.fillStyle='rgba(4,4,20,1)';
+  energyCtx.fillRect(0,0,GW,GH);
+
+  if(energyData.length<2){
+    energyCtx.fillStyle='rgba(122,128,153,.5)'; energyCtx.font='10px DM Sans';
+    energyCtx.textAlign='center';
+    energyCtx.fillText('Démarrez la simulation pour voir l\'évolution thermique', GW/2, GH/2);
+    return;
+  }
+
+  let tMin=Infinity,tMax=-Infinity,TMin=Infinity,TMax=-Infinity,FMax=0;
+  for(const d of energyData){
+    if(d.t<tMin)tMin=d.t; if(d.t>tMax)tMax=d.t;
+    if(d.Tmean-d.Tvar<TMin)TMin=d.Tmean-d.Tvar;
+    if(d.Tmean+d.Tvar>TMax)TMax=d.Tmean+d.Tvar;
+    if(d.flux>FMax)FMax=d.flux;
+  }
+  if(tMax===tMin) tMax=tMin+1;
+  const dTr=TMax-TMin, TMargin=dTr<0.1?0.5:dTr*0.07;
+  TMin-=TMargin; TMax+=TMargin;
+  if(TMax===TMin) TMax=TMin+1;
+
+  function tx(t){ return PAD.left+(t-tMin)/(tMax-tMin)*plotW; }
+  function ty(T){ return PAD.top+(1-(T-TMin)/(TMax-TMin))*plotH; }
+
+  // Grid
+  energyCtx.strokeStyle='rgba(30,32,50,1)'; energyCtx.lineWidth=.5;
+  const tStep=niceStep(tMax-tMin,6), TStep=niceStep(TMax-TMin,4);
+  energyCtx.font='8px DM Sans'; energyCtx.fillStyle='rgba(122,128,153,.8)';
+  for(let t=Math.ceil(tMin/tStep)*tStep;t<=tMax+1e-9;t+=tStep){
+    const x=tx(t); energyCtx.beginPath(); energyCtx.moveTo(x,PAD.top); energyCtx.lineTo(x,PAD.top+plotH); energyCtx.stroke();
+    energyCtx.textAlign='center'; energyCtx.fillText(fmtTime(t),x,GH-6);
+  }
+  for(let Tv=Math.ceil(TMin/TStep)*TStep;Tv<=TMax+1e-9;Tv+=TStep){
+    const y=ty(Tv); energyCtx.beginPath(); energyCtx.moveTo(PAD.left,y); energyCtx.lineTo(PAD.left+plotW,y); energyCtx.stroke();
+    energyCtx.textAlign='right'; energyCtx.fillText(Tv.toFixed(1)+'°',PAD.left-3,y+3);
+  }
+  energyCtx.strokeStyle='rgba(232,160,32,.25)'; energyCtx.lineWidth=1;
+  energyCtx.strokeRect(PAD.left,PAD.top,plotW,plotH);
+
+  // T amb reference line
+  if(P.T_amb>=TMin&&P.T_amb<=TMax){
+    const ya=ty(P.T_amb);
+    energyCtx.setLineDash([4,3]); energyCtx.strokeStyle='rgba(100,150,255,.4)'; energyCtx.lineWidth=1;
+    energyCtx.beginPath(); energyCtx.moveTo(PAD.left,ya); energyCtx.lineTo(PAD.left+plotW,ya); energyCtx.stroke();
+    energyCtx.setLineDash([]);
+    energyCtx.fillStyle='rgba(100,150,255,.7)'; energyCtx.font='7px DM Sans';
+    energyCtx.textAlign='left'; energyCtx.fillText('T_amb',PAD.left+2,ya-2);
+  }
+
+  // Variance band
+  energyCtx.fillStyle='rgba(52,211,153,.08)';
+  energyCtx.beginPath();
+  for(let k=0;k<energyData.length;k++){
+    const d=energyData[k];
+    const x=tx(d.t), y=ty(d.Tmean+d.Tvar);
+    k===0?energyCtx.moveTo(x,y):energyCtx.lineTo(x,y);
+  }
+  for(let k=energyData.length-1;k>=0;k--){
+    const d=energyData[k];
+    energyCtx.lineTo(tx(d.t),ty(d.Tmean-d.Tvar));
+  }
+  energyCtx.closePath(); energyCtx.fill();
+
+  // Mean T line
+  energyCtx.strokeStyle='#34d399'; energyCtx.lineWidth=1.8;
+  energyCtx.lineJoin='round'; energyCtx.lineCap='round';
+  energyCtx.beginPath();
+  for(let k=0;k<energyData.length;k++){
+    const d=energyData[k];
+    const x=tx(d.t), y=ty(d.Tmean);
+    k===0?energyCtx.moveTo(x,y):energyCtx.lineTo(x,y);
+  }
+  energyCtx.stroke();
+
+  // Flux line (normalized, on secondary axis right side)
+  if(FMax>1e-10){
+    // Map flux 0..FMax → TMin..TMax for display
+    const fluxToT = f => TMin + (f/FMax)*(TMax-TMin);
+    energyCtx.strokeStyle='#f97316'; energyCtx.lineWidth=1.2;
+    energyCtx.setLineDash([3,2]);
+    energyCtx.beginPath();
+    for(let k=0;k<energyData.length;k++){
+      const d=energyData[k];
+      const x=tx(d.t), y=ty(fluxToT(d.flux));
+      k===0?energyCtx.moveTo(x,y):energyCtx.lineTo(x,y);
+    }
+    energyCtx.stroke();
+    energyCtx.setLineDash([]);
+    // Right axis label for flux
+    energyCtx.fillStyle='#f97316'; energyCtx.font='7px DM Sans';
+    energyCtx.textAlign='left'; energyCtx.fillText('flux≈'+FMax.toFixed(1),PAD.left+plotW+2,PAD.top+8);
+  }
+
+  // Y axis label
+  energyCtx.fillStyle='rgba(52,211,153,.7)'; energyCtx.font='8px DM Sans';
+  energyCtx.save(); energyCtx.translate(10,PAD.top+plotH/2); energyCtx.rotate(-Math.PI/2);
+  energyCtx.textAlign='center'; energyCtx.fillText('T moy (°C)',0,0); energyCtx.restore();
+
+  // Last value display
+  const last=energyData[energyData.length-1];
+  energyCtx.fillStyle='rgba(13,15,20,.85)'; energyCtx.strokeStyle='#34d399'; energyCtx.lineWidth=1;
+  const lx=tx(last.t), ly=ty(last.Tmean);
+  energyCtx.beginPath(); energyCtx.arc(lx,ly,3.5,0,Math.PI*2); energyCtx.fillStyle='#34d399'; energyCtx.fill();
+  // Equilibrium indicator: if variance is low relative to dT, show "≈ équilibre"
+  const src_temps = _srcT ? Array.from(_srcT).filter(v=>!isNaN(v)) : [];
+  if(src_temps.length>0){
+    const Tsrc_mean = src_temps.reduce((a,b)=>a+b,0)/src_temps.length;
+    const diffFromSrc = Math.abs(last.Tmean-Tsrc_mean);
+    const totalRange = Math.abs(Tsrc_mean-P.T_amb);
+    if(totalRange>0.5){
+      const pct = Math.max(0,Math.min(100,100*(1-diffFromSrc/totalRange)));
+      energyCtx.fillStyle='rgba(122,128,153,.9)'; energyCtx.font='bold 8px DM Sans';
+      energyCtx.textAlign='right';
+      energyCtx.fillText(`équil. ${pct.toFixed(0)}%`, PAD.left+plotW, PAD.top+8);
+    }
+  }
+}
+
+document.getElementById('btn-energy-close').addEventListener('click', closeEnergyPanel);
+document.getElementById('btn-energy-clear').addEventListener('click', ()=>{ clearEnergyData(); });
+document.getElementById('btn-energy-toggle').addEventListener('click', toggleEnergyPanel);

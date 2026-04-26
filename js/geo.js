@@ -17,7 +17,7 @@ let geoObjects=[], geoIdCounter=0;
 function newGeoId(){ return ++geoIdCounter; }
 
 function defaultProps(type){
-  if(type==='source') return { temperature:60 };
+  if(type==='source') return { temperature:60, blocksFlow:false };
   if(type==='fan')    return { speed:2.0, angleDeg:0 }; // 0° = right (→)
   return {};
 }
@@ -146,10 +146,4 @@ function maxFanSpeed(){
   let m=0;
   for(const o of geoObjects) if(o.type==='fan') m=Math.max(m,o.props.speed??0);
   return m;
-}
-
-function defaultProps(type){
-  if(type==='source') return { temperature:60 };
-  if(type==='fan')    return { speed:2.0, angleDeg:0 };
-  return {};
 }

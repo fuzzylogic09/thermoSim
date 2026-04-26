@@ -128,6 +128,13 @@
           <label class="props-label">Température (°C)</label>
           <input class="props-input" type="number" id="prop-temperature" step="1">
         </div>
+        <div class="props-row" id="prop-blocksflow-row" style="display:none;">
+          <label class="props-label" title="Si activé, la source bloque aussi l'écoulement (comme un mur chaud). Si désactivé, la source est purement thermique.">🔒 Bloque l'écoulement CFD</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="prop-blocks-flow" style="width:14px;height:14px;accent-color:var(--accent);">
+            <span id="prop-blocks-flow-lbl" style="font-size:9px;color:var(--muted);">Non (source pure)</span>
+          </label>
+        </div>
         <div id="prop-fan-rows" style="display:none;">
           <div class="props-row">
             <label class="props-label">Vitesse (m/s)</label>
@@ -276,6 +283,7 @@
         <div class="stat-item"><span class="stat-lbl">T min</span><span class="stat-val" id="st-tmin">—</span></div>
         <div class="stat-item"><span class="stat-lbl">|v| max</span><span class="stat-val" id="st-vmax">—</span></div>
         <div class="stat-item"><span class="stat-lbl">|v| moy</span><span class="stat-val" id="st-vmoy">—</span></div>
+        <div class="stat-item"><span class="stat-lbl">Équilibr.</span><span class="stat-val" id="st-equil">—</span></div>
       </div>
     </div>
     <div class="section">
@@ -286,6 +294,11 @@
         <button class="viz-btn" data-viz="both">⚡ Les deux</button>
         <button class="viz-btn" data-viz="stream">〰 Lignes</button>
       </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Bilan thermique</div>
+      <div class="info-note">📈 Température moyenne du domaine et flux de chaleur des sources vs temps.</div>
+      <button class="apply-btn" id="btn-energy-toggle" style="width:100%;margin-top:6px;">📊 Afficher / Masquer bilan thermique</button>
     </div>
     <div class="section">
       <div class="section-title">Sondes T(t)</div>
@@ -313,6 +326,24 @@
   </div>
   <div id="tooltip"></div>
   <svg class="probe-marker-svg" id="probe-svg"></svg>
+</div>
+
+<!-- ENERGY BALANCE GRAPH -->
+<div id="energy-panel">
+  <div id="energy-header">
+    <b>🌡 Bilan thermique du domaine</b>
+    <span style="font-size:9px;color:var(--muted);margin-left:8px;">
+      <span style="color:#34d399">━</span> T moy
+      <span style="color:rgba(52,211,153,.3)">▓</span> ±σ
+      <span style="color:#f97316">╌</span> flux sources
+    </span>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button class="graph-btn" id="btn-energy-clear" title="Effacer données">↺</button>
+      <button class="graph-btn" id="btn-energy-close" title="Fermer">✕</button>
+    </div>
+  </div>
+  <div id="energy-canvas-wrap"><canvas id="energy-canvas"></canvas></div>
 </div>
 
 <!-- PROBE GRAPH -->

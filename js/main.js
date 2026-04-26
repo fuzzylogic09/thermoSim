@@ -218,7 +218,7 @@ document.getElementById('btn-play').addEventListener('click',()=>{
   b.classList.toggle('active',running);
 });
 document.getElementById('btn-step').addEventListener('click',()=>{ simStep(dt_cur); simTime+=dt_cur; });
-document.getElementById('btn-reset-fields').addEventListener('click',()=>{ resetFields(); rebuildFromGeo(); clearProbeData(); });
+document.getElementById('btn-reset-fields').addEventListener('click',()=>{ resetFields(); rebuildFromGeo(); clearProbeData(); clearEnergyData(); });
 document.getElementById('btn-clear').addEventListener('click',()=>{
   if(confirm('Effacer toute la géométrie et les champs ?')){
     clearGeoObjects(); selectedGeoId=null; rebuildFromGeo(); refreshGeoList(); closePropsPanel();
@@ -236,9 +236,11 @@ function loop(ts){
     const dtC=Math.min(dt_cur,5);
     for(let s=0;s<P.spf;s++){ simStep(dtC); simTime+=dtC; }
     sampleProbes();
+    sampleEnergy();
   } else { gatherStats(); }
   render();
   if(probes.length>0){ renderProbeMarkers(); drawGraph(); }
+  drawEnergyGraph();
   updateHUD();
 }
 

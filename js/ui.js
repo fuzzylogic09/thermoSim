@@ -123,6 +123,20 @@ function updateHUD(){
   document.getElementById('st-tmin').textContent=tMin.toFixed(2)+' °C';
   document.getElementById('st-vmax').textContent=vMax.toFixed(4)+' m/s';
   document.getElementById('st-vmoy').textContent=vAvg.toFixed(4)+' m/s';
+  // Thermal equilibrium indicator
+  if(typeof energyData!=='undefined'&&energyData.length>0&&typeof _srcT!=='undefined'&&_srcT){
+    const src_temps=[]; for(let k=0;k<_srcT.length;k++) if(!isNaN(_srcT[k])) src_temps.push(_srcT[k]);
+    if(src_temps.length>0){
+      const Tsrc=src_temps.reduce((a,b)=>a+b,0)/src_temps.length;
+      const last=energyData[energyData.length-1];
+      const totalRange=Math.abs(Tsrc-P.T_amb);
+      if(totalRange>0.5){
+        const pct=Math.max(0,Math.min(100,100*(1-Math.abs(last.Tmean-Tsrc)/totalRange)));
+        const el=document.getElementById('st-equil');
+        if(el) el.textContent=pct.toFixed(0)+'%';
+      }
+    }
+  }
   document.getElementById('leg-min').textContent=tMin.toFixed(1)+'°C';
   document.getElementById('leg-mid').textContent=((tMin+tMax)/2).toFixed(1)+'°C';
   document.getElementById('leg-max').textContent=tMax.toFixed(1)+'°C';
@@ -284,7 +298,13 @@ function openPropsForObject(id){
   // Type-specific fields
   const isSource=obj.type==='source'||obj.type==='hot'||obj.type==='cold';
   document.getElementById('prop-temp-row').style.display=isSource?'':'none';
-  if(isSource) document.getElementById('prop-temperature').value=obj.props.temperature??60;
+  document.getElementById('prop-blocksflow-row').style.display=isSource?'':'none';
+  if(isSource){
+    document.getElementById('prop-temperature').value=obj.props.temperature??60;
+    const blocks=obj.props.blocksFlow??false;
+    document.getElementById('prop-blocks-flow').checked=blocks;
+    document.getElementById('prop-blocks-flow-lbl').textContent=blocks?'Oui (mur chaud)':'Non (source pure)';
+  }
   document.getElementById('prop-fan-rows').style.display=obj.type==='fan'?'':'none';
   if(obj.type==='fan'){
     document.getElementById('prop-fan-speed').value=obj.props.speed??2;
@@ -340,6 +360,9 @@ function drawAngleDial(angleDeg){
 document.getElementById('prop-fan-angle').addEventListener('input',e=>{
   drawAngleDial(parseFloat(e.target.value)||0);
 });
+document.getElementById('prop-blocks-flow').addEventListener('change',e=>{
+  document.getElementById('prop-blocks-flow-lbl').textContent=e.target.checked?'Oui (mur chaud)':'Non (source pure)';
+});
 
 // Apply properties
 document.getElementById('btn-props-apply').addEventListener('click',()=>{
@@ -357,6 +380,7 @@ document.getElementById('btn-props-apply').addEventListener('click',()=>{
   obj.visible=document.getElementById('prop-visible').checked;
   if(obj.type==='source'||obj.type==='hot'||obj.type==='cold'){
     obj.props.temperature=parseFloat(document.getElementById('prop-temperature').value);
+    obj.props.blocksFlow=document.getElementById('prop-blocks-flow').checked;
   }
   if(obj.type==='fan'){
     obj.props.speed=parseFloat(document.getElementById('prop-fan-speed').value)||2;
