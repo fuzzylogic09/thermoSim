@@ -197,7 +197,6 @@ function nbr(x,ii,jj,selfVal){
 }
 
 function linSolve(x,x0,ax,ay,iters,isTemp){
-  const c=1+2*ax+2*ay, cR=1/c;
   for(let k=0;k<iters;k++){
     for(let i=1;i<=Nx;i++) for(let j=1;j<=Ny;j++){
       const ct=cellType[idx(i,j)];
@@ -210,18 +209,30 @@ function linSolve(x,x0,ax,ay,iters,isTemp){
         x[idx(i,j)]=0; continue;
       }
       if(isTemp){
+        // Count actual fluid neighbours to build the correct denominator.
+        // If a neighbour is a wall, it contributes zero flux — it must NOT
+        // appear in the denominator either, otherwise energy leaks into the wall.
         const self=x[idx(i,j)];
-        x[idx(i,j)]=(x0[idx(i,j)]
-          +ax*(nbr(x,i+1,j,self)+nbr(x,i-1,j,self))
-          +ay*(nbr(x,i,j+1,self)+nbr(x,i,j-1,self)))*cR;
+        let num=x0[idx(i,j)], denom=1.0;
+        // i+1
+        if(i<Nx && cellType[idx(i+1,j)]!==C_WALL){ num+=ax*x[idx(i+1,j)]; denom+=ax; }
+        // i-1
+        if(i>1  && cellType[idx(i-1,j)]!==C_WALL){ num+=ax*x[idx(i-1,j)]; denom+=ax; }
+        // j+1
+        if(j<Ny && cellType[idx(i,j+1)]!==C_WALL){ num+=ay*x[idx(i,j+1)]; denom+=ay; }
+        // j-1
+        if(j>1  && cellType[idx(i,j-1)]!==C_WALL){ num+=ay*x[idx(i,j-1)]; denom+=ay; }
+        // domain boundary: Neumann — neighbour equals self, adds ax*self/denom+ax
+        // which simplifies to no change in ratio → just skip (flux=0, no denom contribution)
+        x[idx(i,j)]=num/denom;
       } else {
-        // For velocity/pressure: use ghost cells but clip to valid domain neighbors at edges
-        // This prevents the ghost-cell symmetry from creating artificial gradients
+        // Velocity / pressure — keep existing wall-clipped stencil
         const xL = i>1  ? x[idx(i-1,j)] : x[idx(i,j)];
         const xR = i<Nx ? x[idx(i+1,j)] : x[idx(i,j)];
         const xD = j>1  ? x[idx(i,j-1)] : x[idx(i,j)];
         const xU = j<Ny ? x[idx(i,j+1)] : x[idx(i,j)];
-        x[idx(i,j)]=(x0[idx(i,j)]+ax*(xR+xL)+ay*(xU+xD))*cR;
+        const c=1+2*ax+2*ay;
+        x[idx(i,j)]=(x0[idx(i,j)]+ax*(xR+xL)+ay*(xU+xD))/c;
       }
     }
     applyBoundaryConditions();
@@ -242,10 +253,14 @@ function sampleField(d0,x,y){
   const corners=[[i0,j0,s0*t0],[i0,j1,s0*t1],[i1,j0,s1*t0],[i1,j1,s1*t1]];
   let sum=0,wsum=0;
   for(const[ci,cj,w] of corners){
-    if(ci>=1&&ci<=Nx&&cj>=1&&cj<=Ny&&cellType[idx(ci,cj)]===C_WALL) continue;
+    const isWall = ci>=1&&ci<=Nx&&cj>=1&&cj<=Ny
+                 ? cellType[idx(ci,cj)]===C_WALL
+                 : false; // domain ghost cells are not walls
+    if(isWall) continue;
     sum+=d0[idx(ci,cj)]*w; wsum+=w;
   }
-  if(wsum<1e-9) return d0[idx(Math.round(x),Math.round(y))];
+  // Renormalize by actual fluid weight — conserves energy correctly
+  if(wsum<1e-9) return d0[idx(Math.max(1,Math.min(Nx,Math.round(x))),Math.max(1,Math.min(Ny,Math.round(y))))];
   return sum/wsum;
 }
 
